@@ -1,0 +1,86 @@
+
+# general
+gpu_id: 0
+use_gpu: True
+seed: 2020
+state: INFO
+reproducibility: True
+data_path: 'dataset/'
+checkpoint_dir: 'saved'
+show_progress: True
+save_dataset: False
+dataset_save_path: ~
+save_dataloaders: False
+dataloaders_save_path: ~
+log_wandb: False
+wandb_project: 'recbole'
+#LABEL_FIELD : 'watch_ratio'
+#RATING_FIELD : 'watch_ratio'
+LABEL_FIELD : 'rating'
+RATING_FIELD : 'rating'
+TIME_FIELD: 'timestamp'
+
+# training settings
+epochs: 2
+train_batch_size: 2048
+learner: adam
+learning_rate: 0.001
+neg_sampling:
+  uniform: 10
+
+eval_step: 1
+stopping_step: 20
+clip_grad_norm: ~
+# clip_grad_norm:  {'max_norm': 5, 'norm_type': 2}
+weight_decay: 0.0
+loss_decimal_place: 4
+require_pow: False
+
+# evaluation settings
+eval_args: 
+  split: {'RS':[0.8,0.1,0.1]}
+  group_by: user
+  order: TO
+  mode: labeled
+repeatable: False
+#metrics: ["Recall","MRR","NDCG","Hit","Precision"]
+metrics: ["RMSE","MAE","AUC","LogLoss"]
+topk: [10]
+user_inter_num_interval: "[5,20]"
+#item_inter_num_interval: "[8,8]"
+load_col:  {'inter': ['user_id', 'item_id','rating','timestamp']}
+#load_col:  {'inter': ['user_id', 'item_id','  _ratio','timestamp']}
+valid_metric: logloss
+valid_metric_bigger: True
+eval_batch_size: 2048
+metric_decimal_place: 4
+#normalize_all : True
+#normalize_field: ['timestamp','watch_ratio']
+normalize_field: ['timestamp','rating']
+normalize_all: ~
+#model: 'TDTDIS'
+#model_g: 'TDGEN'
+#model_dv: 'TDVDIS'
+#inference: 'Inference'
+num_time_sample: 10
+K: 7
+T: 100
+M: 3
+sig: 0.5
+embedding_size: 64
+n_times: 32
+Lambda: 0.5
+sample_type: 3 #1：uniform 2:day 3: week 4: entropy 5:random
+entropy_threshold: 0.5
+benchmark_filename: ['train','valid','test']
+
+#user_inter_num_interval: "[10,inf)"
+#item_inter_num_interval: "[10,inf)"
+
+ips_freq: 5
+base_freq: 1
+gamma_v: 1.1
+gamma_t: 1.1
+task: 'ps'
+psv_path: 'init_ps/item_ps.pth'
+pst_path: 'init_ps/time_regressionps_7_100.pth'
