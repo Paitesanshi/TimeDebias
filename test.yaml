@@ -1,6 +1,6 @@
 
 # general
-gpu_id: 0
+gpu_id: 1
 use_gpu: True
 seed: 2020
 state: INFO
@@ -21,10 +21,10 @@ RATING_FIELD : 'rating'
 TIME_FIELD: 'timestamp'
 
 # training settings
-epochs: 20
+epochs: 50
 train_batch_size: 2048
 learner: adam
-learning_rate: 0.001
+learning_rate: 0.0001
 neg_sampling:
   uniform: 10
 
@@ -50,7 +50,7 @@ user_inter_num_interval: "[5,20]"
 #item_inter_num_interval: "[8,8]"
 load_col:  {'inter': ['user_id', 'item_id','rating','timestamp']}
 #load_col:  {'inter': ['user_id', 'item_id','  _ratio','timestamp']}
-valid_metric: logloss
+valid_metric: rmse
 valid_metric_bigger: True
 eval_batch_size: 2048
 metric_decimal_place: 4
@@ -83,5 +83,6 @@ base_freq: 1
 gamma_v: 1.1
 gamma_t: 1.1
 task: 'ips'
+robust: True
 psv_path: 'init_ps/item_ps.pth'
 pst_path: 'init_ps/time_regressionps_7_100.pth'

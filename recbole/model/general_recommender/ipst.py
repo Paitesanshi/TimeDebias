@@ -74,6 +74,7 @@ class IPST(nn.Module):
         user_e = self.get_user_embedding(user)
         item_e = self.get_item_embedding(item)
         po = self.psmodel.get_p(user, item, time)
+        po[po<0.25]=0.25
         invp = torch.reciprocal(po)
         time=time.unsqueeze(dim=-1)
         input=torch.cat([user_e,item_e,time],dim=1)
@@ -82,8 +83,10 @@ class IPST(nn.Module):
         # lowBound = torch.ones_like(invp) + (invp - torch.ones_like(invp)) / (torch.ones_like(InvP) * args.Gama[0])
         # upBound = torch.ones_like(invp) + (invp - torch.ones_like(invp)) * (torch.ones_like(InvP) * args.Gama[0])
         low=1+(invp-1)/self.gamma
+
         up=1+(invp-1)*self.gamma
         w.data*=(up-low)
+        w.data += low
         return w
 
     def calculate_loss(self, interaction):

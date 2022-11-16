@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="d9e8ed7f-522d-4c3a-90ee-f97bb71c72fb" name="156">
+        <fileTransfer rootFolder="/home/qiqi/wanglei" accessType="SFTP" host="183.174.229.159" port="5102" sshConfigId="cc165d7e-f6cc-4c3c-ac68-8cd15202f462" sshConfig="qiqi@183.174.229.159:5102 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

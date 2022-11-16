@@ -43,7 +43,7 @@ class IPSV(nn.Module):
         self.user_embedding = torch.load('init_ps/user_embedding.pth')
         self.item_embedding = torch.load('init_ps/item_embedding.pth')
         #self.embedding_size = self.user_embedding.shape[1]
-        self.mlp=MLPLayers([self.embedding_size*2,self.embedding_size,1])
+        self.mlp=MLPLayers([self.embedding_size*2,self.embedding_size,1],activation='sigmoid')
         # self.invP.weight = torch.nn.Parameter(ips_hat)
         # parameters initialization
         self.apply(xavier_normal_initialization)
@@ -76,14 +76,14 @@ class IPSV(nn.Module):
         input=torch.cat([user_e,item_e],dim=1)
         w=self.mlp(input).squeeze()
         po=self.psmodel(user,item)
+        po[po < 0.25] = 0.25
         invp=torch.reciprocal(po)
         # lowBound = torch.ones_like(invp) + (invp - torch.ones_like(invp)) / (torch.ones_like(InvP) * args.Gama[0])
         # upBound = torch.ones_like(invp) + (invp - torch.ones_like(invp)) * (torch.ones_like(InvP) * args.Gama[0])
         low=1+(invp-1)/self.gamma
         up=1+(invp-1)*self.gamma
         w.data *= (up - low)
-        if torch.isnan(w[0]):
-            print(w)
+        w.data+=low
         return w
 
     def calculate_loss(self, interaction):

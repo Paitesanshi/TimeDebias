@@ -124,7 +124,6 @@ class HRM(SequentialRecommender):
         else:
             hybrid_user_embedding = torch.mean(hybrid_user_embedding, dim=1)
             # batch_size * embedding_size
-
         return hybrid_user_embedding
 
     def calculate_loss(self, interaction):

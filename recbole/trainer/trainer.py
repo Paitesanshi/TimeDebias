@@ -550,16 +550,6 @@ class Trainer(AbstractTrainer):
         return torch.cat(result_list, dim=0)
 
 
-class TraditionalTrainer(Trainer):
-    r"""TraditionalTrainer is designed for Traditional model(Pop,ItemKNN), which set the epoch to 1 whatever the config.
-
-    """
-
-    def __init__(self, config, model):
-        super(TraditionalTrainer, self).__init__(config, model)
-        self.epochs = 1  # Set the epoch to 1 when running memory based model
-
-
 class GANTrainer(AbstractTrainer):
     r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
     functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
@@ -1176,6 +1166,7 @@ class IPSTrainer(Trainer):
         self.ips_freq = config['ips_freq']
         self.base_freq = config['base_freq']
         self.eval_type = config['eval_type']
+        self.robust=config['robust']
         self.eval_collector = Collector(config)
         self.evaluator = Evaluator(config)
         self.item_tensor = None
@@ -1216,9 +1207,12 @@ class IPSTrainer(Trainer):
                 self.ipsv_optimizer.zero_grad()
                 self.ipst_optimizer.zero_grad()
 
-                wv = self.base_ipsv(user, item)
-                wt = self.base_ipst(user, item, ti)
-                w = wv * wt
+                if self.robust==True:
+                    wv = self.base_ipsv(user, item)
+                    wt = self.base_ipst(user, item, ti)
+                    w = wv * wt
+                else:
+                    w=None
                 losses = self.model.calculate_loss(interaction, w)
                 loss = -losses
                 # loss = -torch.sum(losses)
@@ -1250,9 +1244,12 @@ class IPSTrainer(Trainer):
                 user = interaction[self.model.USER_ID]
                 item = interaction[self.model.ITEM_ID]
                 ti = interaction[self.model.TIME]
-                wv = self.base_ipsv(user, item)
-                wt = self.base_ipst(user, item, ti)
-                w = wv * wt
+                if self.robust:
+                    wv = self.base_ipsv(user, item)
+                    wt = self.base_ipst(user, item, ti)
+                    w = wv * wt
+                else:
+                    w=None
                 losses = loss_func(interaction, w)
                 if isinstance(losses, tuple):
                     loss = sum(losses)
@@ -1423,6 +1420,7 @@ class DRTrainer(Trainer):
         self.imp_freq = config['ips_freq']
         self.base_freq = config['base_freq']
         self.eval_type = config['eval_type']
+        self.robust = config['robust']
         self.eval_collector = Collector(config)
         self.evaluator = Evaluator(config)
         self.item_tensor = None
@@ -1473,11 +1471,13 @@ class DRTrainer(Trainer):
                 e_hat_obs = self.none_criterion(y_hat, y_hat + e_hat)
                 delta = e_obs - e_hat_obs
 
-                wv = self.imp_ipsv(user, item)
-                wt = self.imp_ipst(user, item, ti)
-                w = wv * wt
-
-                losses = torch.sum(w * delta)
+                if self.robust:
+                    wv = self.imp_ipsv(user, item)
+                    wt = self.imp_ipst(user, item, ti)
+                    w = wv * wt
+                    losses = torch.sum(w * delta)
+                else:
+                    losses = torch.sum(delta)
                 loss = -losses
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
                 self._check_nan(loss)
@@ -1514,10 +1514,14 @@ class DRTrainer(Trainer):
                 e_obs = label - y_hat
                 delta2 = self.none_criterion(e_hat, e_obs)
 
-                wv = self.imp_ipsv(user, item)
-                wt = self.imp_ipst(user, item, ti)
-                w = wv * wt
-                losses = torch.sum(w * delta2)
+                if self.robust:
+                    wv = self.imp_ipsv(user, item)
+                    wt = self.imp_ipst(user, item, ti)
+                    w = wv * wt
+                    losses = torch.sum(w * delta2)
+                else:
+                    losses = torch.sum(delta2)
+
                 loss = -losses
                 # loss = -torch.sum(losses)
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -1554,11 +1558,16 @@ class DRTrainer(Trainer):
                 e_hat = self.imp_model(user, item, ti)
                 e_obs = label - y_hat
                 delta2 = self.none_criterion(e_hat, e_obs)
-                wv = self.imp_ipsv(user, item)
-                wt = self.imp_ipst(user, item, ti)
-                w = wv * wt
-                w=w.detach()
-                losses = torch.sum(w * delta2)
+
+                if self.robust:
+                    wv = self.imp_ipsv(user, item)
+                    wt = self.imp_ipst(user, item, ti)
+                    w = wv * wt
+                    w = w.detach()
+                    losses = torch.sum(w * delta2)
+                else:
+                    losses = torch.sum(delta2)
+
                 loss = losses
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
                 self._check_nan(loss)
@@ -1582,7 +1591,13 @@ class DRTrainer(Trainer):
                 e_obs = self.none_criterion(y_hat, label)
                 e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
                 delta = e_obs - e_hat_obs
-                losses_obs = w * delta
+                if self.robust:
+                    losses_obs = w * delta
+                    losses = torch.sum(w * delta2)
+                else:
+                    losses_obs = delta
+                    losses = torch.sum(delta2)
+
                 loss_obs = torch.sum(losses_obs)
                 loss = loss_all+loss_obs
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()

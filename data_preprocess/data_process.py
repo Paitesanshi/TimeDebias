@@ -387,8 +387,8 @@ if __name__ == '__main__':
     # positive_filter('kuai_unbias.csv')
     #split_unbiasedset_TO3('ml_unbias_mask.csv', 'ml_train_bias_mask.csv')
     #sampling_weight('ml_data/ml-100k_origin.inter')
-    # split_fulldata_TO2('ml-100k.inter')
-    # sampling_from_biasData(full_path='ml-100k.inter', bias_path='ml_test_bias.csv')
-    # split_unbias_TO2(unbias_path='ml_unbias.csv')
+    split_fulldata_TO2('ml-100k.inter')
+    sampling_from_biasData(full_path='ml-100k.inter', bias_path='ml_test_bias.csv')
+    split_unbias_TO2(unbias_path='ml_unbias.csv')
     judge_userID(train_path='ml_train_bias.csv', test_path='ml_test_unbias.csv')
 
