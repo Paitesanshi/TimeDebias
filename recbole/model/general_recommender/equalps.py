@@ -38,7 +38,7 @@ class EqualPS(GeneralRecommender):
         self.embedding_size = config['embedding_size']
         self.TIME = 'timestamp'
         self.K = config['K']
-
+        self.sig = config['sig']
         # self.Ra
         self.RATING = config['RATING_FIELD']
         # define layers and loss
@@ -128,6 +128,18 @@ class EqualPS(GeneralRecommender):
             pui[i]=self.forward(user[i],item[i],bid)
         # puit = self.forward(user, item)
         return pui
+    def get_p(self,user,item,time):
+        # pui = self.predict(interaction)
+        pui = torch.zeros(size=(len(user),))
+        for i in range(len(user)):
+            bid = int(time[i] * self.K)
+            if bid >= self.K:
+                bid -= 1
+            pui[i] = self.forward(user[i], item[i], bid)
+        # pui = self.forward(user, item)
+        po = -(time - pui) * (time - pui) / (2 * self.sig * self.sig)
+        pt = 1 / (math.sqrt(2 * math.pi) * self.sig) * torch.exp(po)
+        return pt
 
     def full_sort_predict(self, interaction):
         user = interaction[self.USER_ID]

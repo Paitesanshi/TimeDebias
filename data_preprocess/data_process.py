@@ -169,7 +169,7 @@ def judge_userID(train_path='', test_path=''):  # 判断训练集中的用户是
     max_train_count = 0
     for index, row in train_data.iterrows():
         # day = tm.localtime(int(row['timestamp:float'])).tm_wday
-        # item = row['timestamp:float']
+        # item = row['item_id:token']
         # term = (item, day)
         nt = norm_time[int(row['timestamp:float'])]
         block = get_block(nt)
@@ -195,8 +195,11 @@ def split_fulldata_TO2(fulldata_path=''):  # 将dataset(ml-100k_origin)划分为
     # print('data', data)
     normlize_time(data)
     user = data['user_id:token'].unique()
+
     for u in user:
         u_data = data[data['user_id:token'].isin([u])]
+        if len(u_data)<10:
+            continue
         # ml:len(u_data)最小为20
         u_train_data, u_test_data = model_selection.train_test_split(u_data, test_size=0.5, shuffle=True)
         trainset = trainset.append(u_train_data)
@@ -238,8 +241,10 @@ def sampling_from_biasData(full_path='', bias_path=''):  # 从整体数据计算
     cnt={}
     max_count=0
     for index, row in full_data.iterrows():
-
+        #
         # day = tm.localtime(int(row['timestamp:float'])).tm_wday
+        # item = row['item_id:token']
+        # term = (item, day)
         nt=norm_time[int(row['timestamp:float'])]
         block=get_block(nt)
         item=row['item_id:token']
@@ -273,7 +278,7 @@ def sampling_from_biasData(full_path='', bias_path=''):  # 从整体数据计算
     sampling_weight=[]
     for index, row in bias_data.iterrows():
         # day = tm.localtime(int(row['timestamp:float'])).tm_wday
-        # item = row['timestamp:float']
+        # item = row['item_id:token']
         # term = (item, day)
         nt = norm_time[int(row['timestamp:float'])]
         block = get_block(nt)
@@ -338,7 +343,7 @@ def split_unbias_TO2(unbias_path=''):  # 将unbias_data划分为valid set和test
     max_valid_count = 0
     for index, row in validset.iterrows():
         # day = tm.localtime(int(row['timestamp:float'])).tm_wday
-        # item = row['timestamp:float']
+        # item = row['item_id:token']
         # term = (item, day)
         nt = norm_time[int(row['timestamp:float'])]
         block = get_block(nt)
@@ -355,7 +360,7 @@ def split_unbias_TO2(unbias_path=''):  # 将unbias_data划分为valid set和test
     max_test_count = 0
     for index, row in testset.iterrows():
         # day = tm.localtime(int(row['timestamp:float'])).tm_wday
-        # item = row['timestamp:float']
+        # item = row['item_id:token']
         # term = (item, day)
         nt = norm_time[int(row['timestamp:float'])]
         block = get_block(nt)

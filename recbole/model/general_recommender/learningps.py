@@ -40,6 +40,7 @@ class LearningPS(GeneralRecommender):
         self.K=config['K']
         self.T = config['T']
         self.M=config['M']
+        self.sig = config['sig']
         # self.Ra
         self.RATING = config['RATING_FIELD']
         # define layers and loss
@@ -48,18 +49,18 @@ class LearningPS(GeneralRecommender):
         self.density=nn.ModuleList()
         # self.bu = torch.nn.Parameter(torch.empty(size=(self.K,)),requires_grad=True)
         bb=torch.empty(size=(self.K-1,))
-        self.bsig = torch.ones(size=(self.K-1,))
+        self.bsig = torch.full(size=(self.K-1,),fill_value=self.sig,requires_grad=True).to(self.device)
         for i in range(self.K):
             sub_density = nn.Sequential(
                 nn.Linear(self.embedding_size*2, self.embedding_size),
                 nn.Linear(self.embedding_size, 1),
-                # nn.Sigmoid()
+                nn.Sigmoid()
             )
             self.density.append(sub_density)
             # self.bu[i] = i / len(self.bu)
             if i<self.K-1:
                 bb[i]=(i+1) / self.K
-        self.bu = torch.nn.Parameter(bb, requires_grad=True)
+        self.bu = torch.nn.Parameter(bb, requires_grad=True).to(self.device)
         #self.bu[0].requires_grad_(False)
         # self.bu=bb
         #self.bu.requires_grad_(True)
@@ -104,7 +105,11 @@ class LearningPS(GeneralRecommender):
         return puit
 
     # def get_normal(self,mu,sig,x):
-
+    def sample(self):
+        r=torch.normal(0,1,size=(self.K-1,))
+        pos=r*self.bsig+self.bu
+        spos,_=torch.sort(pos)
+        return spos
     def calculate_loss(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
@@ -113,8 +118,8 @@ class LearningPS(GeneralRecommender):
         # for i in range(self.K):
         #     if i >= 1:
         #         # l = self.bu[i - 1]
-        #         #bl = torch.normal(self.bu[i - 1].data, self.bsig[i-1].data, size=(self.M,))
-        #         bl=torch.full((self.M,),self.bu[i-1])
+        #         bl = torch.normal(self.bu[i - 1].data, self.bsig[i-1].data)
+        #         #bl=torch.full((self.M,),self.bu[i-1])
         #     else:
         #         bl = torch.zeros(size=(self.M,))
         #     if i < self.K - 1:
@@ -141,13 +146,14 @@ class LearningPS(GeneralRecommender):
         #         loss/=len(uk)
         #         totloss += loss
         for j in range(self.M):
+            pos=self.sample()
             for i in range(self.K):
                 if i >= 1:
-                    l = self.bu[i - 1]
+                    l = pos[i - 1]
                 else:
                     l=0
                 if i < self.K - 1:
-                    r = self.bu[i]
+                    r = pos[i]
                 else:
                     r=1
                     #br = torch.ones(size=(self.M,))
@@ -161,12 +167,37 @@ class LearningPS(GeneralRecommender):
                 s1=self.smooth(tk,l)
                 s2 = self.smooth(tk, r)
                 s=s2-s1
-                loss=0
                 # for k in range(len(uk)):
                 #     loss+=(pui[k]-tk[k])*(pui[k]-tk[k])*s[k]
                 loss=torch.sum((pui-tk)*(pui-tk)*s)
                 loss/=len(uk)
                 totloss += loss
+        # for j in range(self.M):
+        #     for i in range(self.K):
+        #         if i >= 1:
+        #             l = self.bu[i - 1]
+        #         else:
+        #             l=0
+        #         if i < self.K - 1:
+        #             r = self.bu[i]
+        #         else:
+        #             r=1
+        #             #br = torch.ones(size=(self.M,))
+        #         mask = (time >= l) & (time <= r)
+        #         uk = user[mask]
+        #         if len(uk)==0:
+        #             continue
+        #         ik = item[mask]
+        #         tk = time[mask]
+        #         pui = self.forward(uk, ik, i).squeeze()
+        #         s1=self.smooth(tk,l)
+        #         s2 = self.smooth(tk, r)
+        #         s=s2-s1
+        #         # for k in range(len(uk)):
+        #         #     loss+=(pui[k]-tk[k])*(pui[k]-tk[k])*s[k]
+        #         loss=torch.sum((pui-tk)*(pui-tk)*s)
+        #         loss/=len(uk)
+        #         totloss += loss
         totloss/=self.M
 
         return totloss
@@ -184,6 +215,19 @@ class LearningPS(GeneralRecommender):
             pui[i] = self.forward(user[i], item[i], p)
         # puit = self.forward(user, item)
         return pui
+    def get_p(self,user,item,time):
+        # pui = self.predict(interaction)
+        pui = torch.zeros(size=(len(user),))
+        for i in range(len(user)):
+            bid = int(time[i] * self.K)
+            if bid >= self.K:
+                bid -= 1
+            pui[i] = self.forward(user[i], item[i], bid)
+        # pui = self.forward(user, item)
+        po = -(time - pui) * (time - pui) / (2 * self.sig * self.sig)
+        pt = 1 / (math.sqrt(2 * math.pi) * self.sig) * torch.exp(po)
+        return pt
+
 
     def full_sort_predict(self, interaction):
         user = interaction[self.USER_ID]

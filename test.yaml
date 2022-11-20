@@ -21,15 +21,15 @@ RATING_FIELD : 'rating'
 TIME_FIELD: 'timestamp'
 
 # training settings
-epochs: 50
+epochs: 100
 train_batch_size: 2048
 learner: adam
-learning_rate: 0.0001
+learning_rate: 0.001
 neg_sampling:
   uniform: 10
 
 eval_step: 1
-stopping_step: 20
+stopping_step: 30
 clip_grad_norm: ~
 # clip_grad_norm:  {'max_norm': 5, 'norm_type': 2}
 weight_decay: 0.0
@@ -66,7 +66,7 @@ num_time_sample: 10
 K: 7
 T: 100
 M: 3
-sig: 0.5
+sig: 0.001
 embedding_size: 64
 n_times: 32
 Lambda: 0.5
@@ -82,7 +82,7 @@ imp_freq: 2
 base_freq: 1
 gamma_v: 1.1
 gamma_t: 1.1
-task: 'ips'
-robust: True
+task: 'ps'
+robust: False
 psv_path: 'init_ps/item_ps.pth'
-pst_path: 'init_ps/time_regressionps_7_100.pth'
+pst_path: 'init_ps/time_equalps_7_100.pth'
