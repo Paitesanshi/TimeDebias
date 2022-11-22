@@ -31,14 +31,15 @@ class BPTF(GeneralRecommender):
         self.LABEL = config['LABEL_FIELD']
         self.RATING = config['RATING_FIELD']
         self.TIME = config['TIME_FIELD']
+        self.WDAY=config['WDAY_FIELD']
         # load parameters info
         self.embedding_size = config['embedding_size']
-        self.n_times=config['n_times']
+        self.n_times=config['K']
         # define layers and loss
         self.user_embedding = nn.Embedding(self.n_users, self.embedding_size)
         self.item_embedding = nn.Embedding(self.n_items, self.embedding_size)
         self.time_embedding = nn.Embedding(self.n_times, self.embedding_size)
-        self.loss = nn.MSELoss()
+        self.loss = nn.MSELoss(reduce=False)
         self.sigmoid = nn.Sigmoid()
 
         # parameters initialization
@@ -67,33 +68,37 @@ class BPTF(GeneralRecommender):
         return self.item_embedding(item)
 
     def get_time_embedding(self, time):
-        time=time*self.n_times
-        time=time.floor().long()
-        time = torch.where(time >=5, 4, time)
+        # time=time*self.n_times
+        # time=time.floor().long()
+        # time = torch.where(time >=5, 4, time)
         return self.time_embedding(time)
 
-    def forward(self, user, item,time):
+    def forward(self, user, item,day):
         user_e = self.get_user_embedding(user)
         item_e = self.get_item_embedding(item)
-        time_e = self.get_time_embedding(time)
+        time_e = self.get_time_embedding(day)
         return torch.mul(torch.mul(user_e, item_e),time_e).sum(dim=1)
 
 
-    def calculate_loss(self, interaction):
+    def calculate_loss(self, interaction, weight=None):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
         time = interaction[self.TIME]
+        day=interaction[self.WDAY].long()
         #rating = interaction[self.RATING]
         label = interaction[self.LABEL]
-        output = self.forward(user, item,time)
-        loss = self.loss(output, label)
+        output = self.forward(user, item,day)
+        losses = self.loss(output, label)
+        if weight != None:
+            losses *= weight
+        loss = torch.sum(losses) / len(losses)
         return loss
 
     def predict(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        time = interaction[self.TIME]
-        score = self.forward(user, item,time)
+        day = interaction[self.WDAY].long()
+        score = self.forward(user, item,day)
         return score
 
     def full_sort_predict(self, interaction):

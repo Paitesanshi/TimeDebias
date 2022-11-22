@@ -10,3 +10,5 @@ from recbole.model.general_recommender.equalps import EqualPS
 from recbole.model.general_recommender.learningps import LearningPS
 from recbole.model.general_recommender.ipst import IPST
 from recbole.model.general_recommender.ipsv import IPSV
+from recbole.model.general_recommender.bptf import BPTF
+from recbole.model.general_recommender.tmtf import TMTF

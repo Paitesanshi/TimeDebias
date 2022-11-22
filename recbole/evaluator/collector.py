@@ -174,7 +174,7 @@ class Collector(object):
             self.data_struct.update_tensor('rec.score', scores_tensor)
 
         if self.register.need('data.label'):
-            self.label_field = self.config['LABEL_FIELD']
+            self.label_field = self.config['RATING_FIELD']
             self.data_struct.update_tensor('data.label', interaction[self.label_field].to(self.device))
 
     def eval_batch_collect_time(

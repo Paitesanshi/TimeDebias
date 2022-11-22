@@ -82,7 +82,7 @@ class PMF(GeneralRecommender):
     def calculate_loss(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        label = interaction[self.LABEL]
+        #label = interaction[self.LABEL]
         rating=interaction[self.RATING]
         output = self.forward(user, item)
         loss = self.loss(output, rating)
