@@ -1599,8 +1599,10 @@ class DRTrainer(Trainer):
 
 
             wv = self.psvmodel.get_p(user, item)
+            wv[wv < 0.25] = 0.25
             wv = torch.reciprocal(wv)
             wt = self.pstmodel.get_p(user, item, ti)
+            wt[wt < 0.25] = 0.25
             wt = torch.reciprocal(wt)
             w = wv * wt
             w = w.detach()

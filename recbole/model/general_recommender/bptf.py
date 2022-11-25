@@ -31,7 +31,7 @@ class BPTF(GeneralRecommender):
         self.LABEL = config['LABEL_FIELD']
         self.RATING = config['RATING_FIELD']
         self.TIME = config['TIME_FIELD']
-        self.WDAY=config['WDAY_FIELD']
+        # self.WDAY=config['WDAY_FIELD']
         # load parameters info
         self.embedding_size = config['embedding_size']
         self.n_times=config['K']
@@ -83,8 +83,7 @@ class BPTF(GeneralRecommender):
     def calculate_loss(self, interaction, weight=None):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        time = interaction[self.TIME]
-        day=interaction[self.WDAY].long()
+        day=interaction[self.TIME].long()
         #rating = interaction[self.RATING]
         label = interaction[self.LABEL]
         output = self.forward(user, item,day)
@@ -97,7 +96,7 @@ class BPTF(GeneralRecommender):
     def predict(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        day = interaction[self.WDAY].long()
+        day = interaction[self.TIME].long()
         score = self.forward(user, item,day)
         return score
 
