@@ -32,7 +32,6 @@ class TMTF(GeneralRecommender):
         self.LABEL = config['LABEL_FIELD']
         self.RATING = config['RATING_FIELD']
         self.TIME = config['TIME_FIELD']
-        self.WDAY = config['WDAY_FIELD']
         # load parameters info
         self.embedding_size = config['embedding_size']
         self.K = config['K']
@@ -73,7 +72,7 @@ class TMTF(GeneralRecommender):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
         label = interaction[self.LABEL]
-        time = interaction[self.WDAY].long()
+        time = interaction[self.TIME].long()
         pred = self.forward(user, item, time)
 
         loss = self.loss_fct(pred, label)
@@ -83,7 +82,7 @@ class TMTF(GeneralRecommender):
     def predict(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        time = interaction[self.WDAY]
+        time = interaction[self.TIME].long()
         pred = self.forward(user, item, time)
         return pred
 
