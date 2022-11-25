@@ -919,13 +919,12 @@ class RDDRTrainer(Trainer):
                 e_obs = label - y_hat
                 delta2 = self.none_criterion(e_hat, e_obs)
 
-                if self.robust:
-                    wv = self.imp_ipsv(user, item)
-                    wt = self.imp_ipst(user, item, ti)
-                    w = wv * wt
-                    losses = torch.sum(w * delta2)
-                else:
-                    losses = torch.sum(delta2)
+
+                wv = self.imp_ipsv(user, item)
+                wt = self.imp_ipst(user, item, ti)
+                w = wv * wt
+                losses = torch.sum(w * delta2)
+
 
                 loss = -losses
                 # loss = -torch.sum(losses)
@@ -964,14 +963,12 @@ class RDDRTrainer(Trainer):
                 e_obs = label - y_hat
                 delta2 = self.none_criterion(e_hat, e_obs)
 
-                if self.robust:
-                    wv = self.imp_ipsv(user, item)
-                    wt = self.imp_ipst(user, item, ti)
-                    w = wv * wt
-                    w = w.detach()
-                    losses = torch.sum(w * delta2)
-                else:
-                    losses = torch.sum(delta2)
+                wv = self.imp_ipsv(user, item)
+                wt = self.imp_ipst(user, item, ti)
+                w = wv * wt
+                w = w.detach()
+                losses = torch.sum(w * delta2)
+
 
                 loss = losses
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -1387,8 +1384,10 @@ class IPSTrainer(Trainer):
             ti = interaction[self.model.TIME]
 
             wv = self.psvmodel.get_p(user, item)
+            wv[wv < 0.25] = 0.25
             wv=torch.reciprocal(wv)
             wt = self.pstmodel.get_p(user, item, ti)
+            wt[wt < 0.25] = 0.25
             wt = torch.reciprocal(wt)
             w = wv * wt
 
@@ -1620,7 +1619,7 @@ class DRTrainer(Trainer):
 
             self.optimizer.zero_grad()
             all_time=torch.arange(0,7).to(self.device)
-            all_pair = torch.cartesian_prod(user, item,all_time)
+            all_pair = torch.cartesian_prod(user, item)
             #user_all, item_all,time_all = all_pair[:, 0], all_pair[:, 1],all_pair[:,2]
             user_all, item_all = all_pair[:, 0], all_pair[:, 1]
             time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
