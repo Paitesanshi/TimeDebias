@@ -76,7 +76,7 @@ class BPTF(GeneralRecommender):
     def forward(self, user, item,day):
         user_e = self.get_user_embedding(user)
         item_e = self.get_item_embedding(item)
-        time_e = self.get_time_embedding(day)
+        time_e = self.get_time_embedding(day.long())
         return torch.mul(torch.mul(user_e, item_e),time_e).sum(dim=1)
 
 
