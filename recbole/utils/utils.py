@@ -58,8 +58,7 @@ def get_model(model_name):
         Recommender: model class
     """
     model_submodule = [
-        'general_recommender', 'context_aware_recommender', 'sequential_recommender', 'knowledge_aware_recommender',
-        'exlib_recommender'
+        'general_recommender',  'sequential_recommender'
     ]
 
     model_file_name = model_name.lower()
@@ -76,7 +75,7 @@ def get_model(model_name):
     return model_class
 
 
-def get_trainer(model_type, model_name,task=None):
+def get_trainer(model_type, model_name,task=None,robust=None):
     r"""Automatically select trainer class based on model type and model name
 
     Args:
@@ -86,10 +85,17 @@ def get_trainer(model_type, model_name,task=None):
     Returns:
         Trainer: trainer class
     """
-    if task.lower()=='ips':
-        return getattr(importlib.import_module('recbole.trainer'), 'IPSTrainer')
-    if task.lower()=='dr':
-        return getattr(importlib.import_module('recbole.trainer'), 'DRTrainer')
+    if task!=None:
+        if task.lower()=='ips':
+            if robust==True:
+                return getattr(importlib.import_module('recbole.trainer'), 'RDIPSTrainer')
+            return getattr(importlib.import_module('recbole.trainer'), 'IPSTrainer')
+        if task.lower()=='dr':
+            if robust==True:
+                return getattr(importlib.import_module('recbole.trainer'), 'RDDRTrainer')
+            return getattr(importlib.import_module('recbole.trainer'), 'DRTrainer')
+        if task.lower() == 'dips':
+            return getattr(importlib.import_module('recbole.trainer'), 'DIPSTrainer')
     try:
         return getattr(importlib.import_module('recbole.trainer'), model_name + 'Trainer')
     except AttributeError:

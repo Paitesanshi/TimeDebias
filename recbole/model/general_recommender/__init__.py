@@ -12,3 +12,4 @@ from recbole.model.general_recommender.ipst import IPST
 from recbole.model.general_recommender.ipsv import IPSV
 from recbole.model.general_recommender.bptf import BPTF
 from recbole.model.general_recommender.tmtf import TMTF
+from recbole.model.general_recommender.tmf import TMF

@@ -13,16 +13,18 @@ save_dataloaders: False
 dataloaders_save_path: ~
 log_wandb: False
 wandb_project: 'recbole'
+TIME_FIELD: 'timestamp'
 
+load_col:  {'inter': ['user_id', 'item_id','rating','timestamp']}
 # training settings
 epochs: 300
 train_batch_size: 2048
 learner: adam
-learning_rate: 0.01
-neg_sampling:
-  uniform: 1
+learning_rate: 0.0001
+neg_sampling: ~
+#  uniform: 1
 eval_step: 1
-stopping_step: 50
+stopping_step: 100
 clip_grad_norm: ~
 # clip_grad_norm:  {'max_norm': 5, 'norm_type': 2}
 weight_decay: 0.0

@@ -110,8 +110,8 @@ class Trainer(AbstractTrainer):
         self.evaluator = Evaluator(config)
         self.item_tensor = None
         self.tot_item_num = None
-        self.psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps.pth'
-        self.pst_path = config['pst_path'] if config['psv_path'] != None else 'init_ps/time_ps.pth'
+        self.psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
+        self.pst_path = config['pst_path'] if config['psv_path'] != None else 'init_ps/time_ps_week.pth'
     def _build_optimizer(self, **kwargs):
         r"""Init the Optimizer
 
@@ -399,14 +399,6 @@ class Trainer(AbstractTrainer):
                 valid_step += 1
 
         self._add_hparam_to_tensorboard(self.best_valid_score)
-        import math
-        # if self.config['task'] == 'ps':
-        #     if self.model.__class__.__name__ == 'PMF':
-        #         filepath = './init_ps/item_ps.pth'
-        #         torch.save(self.model, filepath)
-        #     else:
-        #         filepath = './init_ps/time_ps.pth'
-        #         torch.save(self.model, filepath)
 
         return self.best_valid_score, self.best_valid_result
 
@@ -497,7 +489,7 @@ class Trainer(AbstractTrainer):
             interaction, scores, positive_u, positive_i = eval_func(batched_data)
             if self.gpu_available and show_progress:
                 iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
-            if self.model.__class__.__name__.find('PS') != -1:
+            if self.config['task'] == 'ps':
                 self.eval_collector.eval_batch_collect_time(scores, interaction, positive_u, positive_i)
             else:
                 self.eval_collector.eval_batch_collect(scores, interaction, positive_u, positive_i)
@@ -525,7 +517,7 @@ class Trainer(AbstractTrainer):
         return torch.cat(result_list, dim=0)
 
 
-class IPSTrainer(Trainer):
+class RDIPSTrainer(Trainer):
     r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
     functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
     resume_checkpoint() and some other features helpful for model training and evaluation.
@@ -541,7 +533,7 @@ class IPSTrainer(Trainer):
     """
 
     def __init__(self, config, model):
-        super(IPSTrainer, self).__init__(config, model)
+        super(RDIPSTrainer, self).__init__(config, model)
         self.logger = getLogger()
         self.tensorboard = get_tensorboard(self.logger)
         self.wandblogger = WandbLogger(config)
@@ -568,18 +560,16 @@ class IPSTrainer(Trainer):
         self.best_valid_result = None
         self.train_loss_dict = dict()
 
-        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps.npy'
-        pst_path = config['pst_path'] if config['pst_path'] != None else 'init_ps/time_ps.npy'
+        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
+        pst_path = config['pst_path'] if config['pst_path'] != None else 'init_ps/time_ps_week.pth'
         psvmodel = torch.load(psv_path)
         pstmodel = torch.load(pst_path)
-        # psv_dict=np.load(psv_path,allow_pickle=True).item()
-        # pst_dict = np.load(pst_path, allow_pickle=True).item()
         self.base_ipsv = IPSV(config, psvmodel).to(self.device)
         self.base_ipst = IPST(config, pstmodel).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         self.ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.learning_rate,
                                          weight_decay=self.weight_decay)
-        self.ipst_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.learning_rate,
+        self.ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.learning_rate,
                                          weight_decay=self.weight_decay)
         self.ips_freq = config['ips_freq']
         self.base_freq = config['base_freq']
@@ -625,13 +615,11 @@ class IPSTrainer(Trainer):
                 self.ipsv_optimizer.zero_grad()
                 self.ipst_optimizer.zero_grad()
 
-                if self.robust==True:
-                    wv = self.base_ipsv(user, item)
-                    wt = self.base_ipst(user, item, ti)
-                    w = wv * wt
-                else:
-                    w=None
+                wv = self.base_ipsv(user, item)
+                wt = self.base_ipst(user, item, ti)
+                w = wv * wt
                 losses = self.model.calculate_loss(interaction, w)
+
                 loss = -losses
                 # loss = -torch.sum(losses)
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -771,7 +759,7 @@ class IPSTrainer(Trainer):
         return self.best_valid_score, self.best_valid_result
 
 
-class DRTrainer(Trainer):
+class RDDRTrainer(Trainer):
     r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
     functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
     resume_checkpoint() and some other features helpful for model training and evaluation.
@@ -787,7 +775,7 @@ class DRTrainer(Trainer):
     """
 
     def __init__(self, config, model):
-        super(DRTrainer, self).__init__(config, model)
+        super(RDDRTrainer, self).__init__(config, model)
         self.logger = getLogger()
         self.tensorboard = get_tensorboard(self.logger)
         self.wandblogger = WandbLogger(config)
@@ -814,8 +802,8 @@ class DRTrainer(Trainer):
         self.best_valid_result = None
         self.train_loss_dict = dict()
 
-        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps.pth'
-        pst_path = config['pst_path'] if config['psv_path'] != None else 'init_ps/time_ps.pth'
+        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
+        pst_path = config['pst_path'] if config['psv_path'] != None else 'init_ps/time_ps_week.pth'
         psvmodel = torch.load(psv_path)
         pstmodel = torch.load(pst_path)
         self.base_ipsv = IPSV(config, psvmodel).to(self.device)
@@ -828,14 +816,14 @@ class DRTrainer(Trainer):
                                         weight_decay=self.weight_decay)
         self.base_ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.learning_rate,
                                               weight_decay=self.weight_decay)
-        self.base_ipst_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.learning_rate,
+        self.base_ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.learning_rate,
                                               weight_decay=self.weight_decay)
         self.imp_ipsv_optimizer = optim.Adam(self.imp_ipsv.parameters(), lr=self.learning_rate,
                                              weight_decay=self.weight_decay)
-        self.imp_ipst_optimizer = optim.Adam(self.imp_ipsv.parameters(), lr=self.learning_rate,
+        self.imp_ipst_optimizer = optim.Adam(self.imp_ipst.parameters(), lr=self.learning_rate,
                                              weight_decay=self.weight_decay)
         self.ips_freq = config['ips_freq']
-        self.imp_freq = config['ips_freq']
+        self.imp_freq = config['imp_freq']
         self.base_freq = config['base_freq']
         self.eval_type = config['eval_type']
         self.robust = config['robust']
@@ -889,13 +877,12 @@ class DRTrainer(Trainer):
                 e_hat_obs = self.none_criterion(y_hat, y_hat + e_hat)
                 delta = e_obs - e_hat_obs
 
-                if self.robust:
-                    wv = self.imp_ipsv(user, item)
-                    wt = self.imp_ipst(user, item, ti)
-                    w = wv * wt
-                    losses = torch.sum(w * delta)
-                else:
-                    losses = torch.sum(delta)
+
+                wv = self.imp_ipsv(user, item)
+                wt = self.imp_ipst(user, item, ti)
+                w = wv * wt
+                losses = torch.sum(w * delta)
+
                 loss = -losses
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
                 self._check_nan(loss)
@@ -997,11 +984,12 @@ class DRTrainer(Trainer):
                     iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
 
                 self.optimizer.zero_grad()
+                all_time=torch.arange(0,7).to(self.device)
                 all_pair = torch.cartesian_prod(user, item)
                 user_all, item_all = all_pair[:, 0], all_pair[:, 1]
-                ti_all = torch.rand_like(user_all.float())
-                y_hat_all = self.model(user_all, item_all, ti_all)
-                e_all = self.imp_model(user_all, item_all, ti_all)
+                time_all=torch.randint(0,7,[len(user_all),]).to(self.device)
+                y_hat_all = self.model(user_all, item_all, time_all)
+                e_all = self.imp_model(user_all, item_all, time_all)
                 loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
 
                 y_hat = self.model(user, item, ti)
@@ -1112,3 +1100,640 @@ class DRTrainer(Trainer):
         self._add_hparam_to_tensorboard(self.best_valid_score)
 
         return self.best_valid_score, self.best_valid_result
+
+
+class DIPSTrainer(Trainer):
+    r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
+    functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
+    resume_checkpoint() and some other features helpful for model training and evaluation.
+
+    Generally speaking, this class can serve most recommender system models, If the training process of the model is to
+    simply optimize a single loss without involving any complex training strategies, such as adversarial learning,
+    pre-training and so on.
+
+    Initializing the Trainer needs two parameters: `config` and `model`. `config` records the parameters information
+    for controlling training and evaluation, such as `learning_rate`, `epochs`, `eval_step` and so on.
+    `model` is the instantiated object of a Model Class.
+
+    """
+
+    def __init__(self, config, model):
+        super(DIPSTrainer, self).__init__(config, model)
+        self.logger = getLogger()
+        self.tensorboard = get_tensorboard(self.logger)
+        self.wandblogger = WandbLogger(config)
+        self.learner = config['learner']
+        self.learning_rate = config['learning_rate']
+        self.epochs = config['epochs']
+        self.eval_step = min(config['eval_step'], self.epochs)
+        self.stopping_step = config['stopping_step']
+        self.clip_grad_norm = config['clip_grad_norm']
+        self.valid_metric = config['valid_metric'].lower()
+        self.valid_metric_bigger = config['valid_metric_bigger']
+        self.test_batch_size = config['eval_batch_size']
+        self.gpu_available = torch.cuda.is_available() and config['use_gpu']
+        self.device = config['device']
+        self.checkpoint_dir = config['checkpoint_dir']
+        ensure_dir(self.checkpoint_dir)
+        saved_model_file = '{}-{}.pth'.format(self.config['model'], get_local_time())
+        self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
+        self.weight_decay = config['weight_decay']
+
+        self.start_epoch = 0
+        self.cur_step = 0
+        self.best_valid_score = -np.inf if self.valid_metric_bigger else np.inf
+        self.best_valid_result = None
+        self.train_loss_dict = dict()
+
+        pst_path = config['pst_path'] if config['pst_path'] != None else 'init_ps/tmf_time_ps_week.pth'
+        self.pstmodel = torch.load(pst_path)
+        # self.base_ipst = IPST(config, pstmodel).to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        self.eval_type = config['eval_type']
+        self.eval_collector = Collector(config)
+        self.evaluator = Evaluator(config)
+        self.item_tensor = None
+        self.tot_item_num = None
+
+    def _train_epoch(self, train_data, epoch_idx, loss_func=None, show_progress=False):
+        r"""Train the model in an epoch
+
+        Args:
+            train_data (DataLoader): The train data.
+            epoch_idx (int): The current epoch id.
+            loss_func (function): The loss function of :attr:`model`. If it is ``None``, the loss function will be
+                :attr:`self.model.calculate_loss`. Defaults to ``None``.
+            show_progress (bool): Show the progress of training epoch. Defaults to ``False``.
+
+        Returns:
+            float/tuple: The sum of loss returned by all batches in this epoch. If the loss in each batch contains
+            multiple parts and the model return these multiple parts loss instead of the sum of loss, it will return a
+            tuple which includes the sum of loss in each part.
+        """
+
+
+
+        self.model.train()
+        loss_func = loss_func or self.model.calculate_loss
+        total_loss = None
+        iter_data = (
+            tqdm(
+                train_data,
+                total=len(train_data),
+                ncols=100,
+                desc=set_color(f"Train {epoch_idx:>5}", 'pink'),
+            ) if show_progress else train_data
+        )
+        for batch_idx, interaction in enumerate(iter_data):
+            interaction = interaction.to(self.device)
+            self.optimizer.zero_grad()
+            user = interaction[self.model.USER_ID]
+            item = interaction[self.model.ITEM_ID]
+            ti = interaction[self.model.TIME]
+            w= self.pstmodel(user,item,ti)
+            w=torch.reciprocal(w)
+            losses = loss_func(interaction, w)
+            if isinstance(losses, tuple):
+                loss = sum(losses)
+                loss_tuple = tuple(per_loss.item() for per_loss in losses)
+                total_loss = loss_tuple if total_loss is None else tuple(map(sum, zip(total_loss, loss_tuple)))
+            else:
+                loss = losses
+                total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+            self._check_nan(loss)
+            loss.backward()
+            if self.clip_grad_norm:
+                clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+            self.optimizer.step()
+            if self.gpu_available and show_progress:
+                iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+        return total_loss
+
+    def fit(self, train_data, valid_data=None, verbose=True, saved=True, show_progress=False, callback_fn=None):
+        r"""Train the model based on the train data and the valid data.
+
+        Args:
+            train_data (DataLoader): the train data
+            valid_data (DataLoader, optional): the valid data, default: None.
+                                               If it's None, the early_stopping is invalid.
+            verbose (bool, optional): whether to write training and evaluation information to logger, default: True
+            saved (bool, optional): whether to save the model parameters, default: True
+            show_progress (bool): Show the progress of training epoch and evaluate epoch. Defaults to ``False``.
+            callback_fn (callable): Optional callback function executed at end of epoch.
+                                    Includes (epoch_idx, valid_score) input arguments.
+
+        Returns:
+             (float, dict): best valid score and best valid result. If valid_data is None, it returns (-1, None)
+        """
+        if saved and self.start_epoch >= self.epochs:
+            self._save_checkpoint(-1, verbose=verbose)
+
+        self.eval_collector.data_collect(train_data)
+        if self.config['train_neg_sample_args'].get('dynamic', 'none') != 'none':
+            train_data.get_model(self.model)
+        valid_step = 0
+
+        for epoch_idx in range(self.start_epoch, self.epochs):
+            # train
+            training_start_time = time()
+            train_loss = self._train_epoch(train_data, epoch_idx, show_progress=show_progress)
+            self.train_loss_dict[epoch_idx] = sum(train_loss) if isinstance(train_loss, tuple) else train_loss
+            training_end_time = time()
+            train_loss_output = \
+                self._generate_train_loss_output(epoch_idx, training_start_time, training_end_time, train_loss)
+            if verbose:
+                self.logger.info(train_loss_output)
+            self._add_train_loss_to_tensorboard(epoch_idx, train_loss)
+            self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx},
+                                         head='train')
+
+            # eval
+            if self.eval_step <= 0 or not valid_data:
+                if saved:
+                    self._save_checkpoint(epoch_idx, verbose=verbose)
+                continue
+            if (epoch_idx + 1) % self.eval_step == 0:
+                valid_start_time = time()
+                valid_score, valid_result = self._valid_epoch(valid_data, show_progress=show_progress)
+                self.best_valid_score, self.cur_step, stop_flag, update_flag = early_stopping(
+                    valid_score,
+                    self.best_valid_score,
+                    self.cur_step,
+                    max_step=self.stopping_step,
+                    bigger=self.valid_metric_bigger
+                )
+                valid_end_time = time()
+                valid_score_output = (set_color("epoch %d evaluating", 'green') + " [" + set_color("time", 'blue')
+                                      + ": %.2fs, " + set_color("valid_score", 'blue') + ": %f]") % \
+                                     (epoch_idx, valid_end_time - valid_start_time, valid_score)
+                valid_result_output = set_color('valid result', 'blue') + ': \n' + dict2str(valid_result)
+                if verbose:
+                    self.logger.info(valid_score_output)
+                    self.logger.info(valid_result_output)
+                self.tensorboard.add_scalar('Vaild_score', valid_score, epoch_idx)
+                self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
+
+                if update_flag:
+                    if saved:
+                        self._save_checkpoint(epoch_idx, verbose=verbose)
+                    self.best_valid_result = valid_result
+
+                if callback_fn:
+                    callback_fn(epoch_idx, valid_score)
+
+                if stop_flag:
+                    stop_output = 'Finished training, best eval result in epoch %d' % \
+                                  (epoch_idx - self.cur_step * self.eval_step)
+                    if verbose:
+                        self.logger.info(stop_output)
+                    break
+
+                valid_step += 1
+
+        self._add_hparam_to_tensorboard(self.best_valid_score)
+
+        return self.best_valid_score, self.best_valid_result
+
+
+class IPSTrainer(Trainer):
+    r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
+    functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
+    resume_checkpoint() and some other features helpful for model training and evaluation.
+
+    Generally speaking, this class can serve most recommender system models, If the training process of the model is to
+    simply optimize a single loss without involving any complex training strategies, such as adversarial learning,
+    pre-training and so on.
+
+    Initializing the Trainer needs two parameters: `config` and `model`. `config` records the parameters information
+    for controlling training and evaluation, such as `learning_rate`, `epochs`, `eval_step` and so on.
+    `model` is the instantiated object of a Model Class.
+
+    """
+
+    def __init__(self, config, model):
+        super(IPSTrainer, self).__init__(config, model)
+        self.logger = getLogger()
+        self.tensorboard = get_tensorboard(self.logger)
+        self.wandblogger = WandbLogger(config)
+        self.learner = config['learner']
+        self.learning_rate = config['learning_rate']
+        self.epochs = config['epochs']
+        self.eval_step = min(config['eval_step'], self.epochs)
+        self.stopping_step = config['stopping_step']
+        self.clip_grad_norm = config['clip_grad_norm']
+        self.valid_metric = config['valid_metric'].lower()
+        self.valid_metric_bigger = config['valid_metric_bigger']
+        self.test_batch_size = config['eval_batch_size']
+        self.gpu_available = torch.cuda.is_available() and config['use_gpu']
+        self.device = config['device']
+        self.checkpoint_dir = config['checkpoint_dir']
+        ensure_dir(self.checkpoint_dir)
+        saved_model_file = '{}-{}.pth'.format(self.config['model'], get_local_time())
+        self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
+        self.weight_decay = config['weight_decay']
+
+        self.start_epoch = 0
+        self.cur_step = 0
+        self.best_valid_score = -np.inf if self.valid_metric_bigger else np.inf
+        self.best_valid_result = None
+        self.train_loss_dict = dict()
+
+        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
+        pst_path = config['pst_path'] if config['pst_path'] != None else 'init_ps/time_ps_week.pth'
+        self.psvmodel = torch.load(psv_path)
+        self.pstmodel = torch.load(pst_path)
+
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        self.eval_type = config['eval_type']
+        self.eval_collector = Collector(config)
+        self.evaluator = Evaluator(config)
+        self.item_tensor = None
+        self.tot_item_num = None
+
+    def _train_epoch(self, train_data, epoch_idx, loss_func=None, show_progress=False):
+        r"""Train the model in an epoch
+
+        Args:
+            train_data (DataLoader): The train data.
+            epoch_idx (int): The current epoch id.
+            loss_func (function): The loss function of :attr:`model`. If it is ``None``, the loss function will be
+                :attr:`self.model.calculate_loss`. Defaults to ``None``.
+            show_progress (bool): Show the progress of training epoch. Defaults to ``False``.
+
+        Returns:
+            float/tuple: The sum of loss returned by all batches in this epoch. If the loss in each batch contains
+            multiple parts and the model return these multiple parts loss instead of the sum of loss, it will return a
+            tuple which includes the sum of loss in each part.
+        """
+
+
+
+        self.model.train()
+        loss_func = loss_func or self.model.calculate_loss
+        total_loss = None
+        iter_data = (
+            tqdm(
+                train_data,
+                total=len(train_data),
+                ncols=100,
+                desc=set_color(f"Train {epoch_idx:>5}", 'pink'),
+            ) if show_progress else train_data
+        )
+        for batch_idx, interaction in enumerate(iter_data):
+            interaction = interaction.to(self.device)
+            self.optimizer.zero_grad()
+            user = interaction[self.model.USER_ID]
+            item = interaction[self.model.ITEM_ID]
+            ti = interaction[self.model.TIME]
+
+            wv = self.psvmodel.get_p(user, item)
+            wv=torch.reciprocal(wv)
+            wt = self.pstmodel.get_p(user, item, ti)
+            wt = torch.reciprocal(wt)
+            w = wv * wt
+
+
+            losses = loss_func(interaction, w)
+            if isinstance(losses, tuple):
+                loss = sum(losses)
+                loss_tuple = tuple(per_loss.item() for per_loss in losses)
+                total_loss = loss_tuple if total_loss is None else tuple(map(sum, zip(total_loss, loss_tuple)))
+            else:
+                loss = losses
+                total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+            self._check_nan(loss)
+            loss.backward()
+            if self.clip_grad_norm:
+                clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+            self.optimizer.step()
+            if self.gpu_available and show_progress:
+                iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+        return total_loss
+
+    def fit(self, train_data, valid_data=None, verbose=True, saved=True, show_progress=False, callback_fn=None):
+        r"""Train the model based on the train data and the valid data.
+
+        Args:
+            train_data (DataLoader): the train data
+            valid_data (DataLoader, optional): the valid data, default: None.
+                                               If it's None, the early_stopping is invalid.
+            verbose (bool, optional): whether to write training and evaluation information to logger, default: True
+            saved (bool, optional): whether to save the model parameters, default: True
+            show_progress (bool): Show the progress of training epoch and evaluate epoch. Defaults to ``False``.
+            callback_fn (callable): Optional callback function executed at end of epoch.
+                                    Includes (epoch_idx, valid_score) input arguments.
+
+        Returns:
+             (float, dict): best valid score and best valid result. If valid_data is None, it returns (-1, None)
+        """
+        if saved and self.start_epoch >= self.epochs:
+            self._save_checkpoint(-1, verbose=verbose)
+
+        self.eval_collector.data_collect(train_data)
+        if self.config['train_neg_sample_args'].get('dynamic', 'none') != 'none':
+            train_data.get_model(self.model)
+        valid_step = 0
+
+        for epoch_idx in range(self.start_epoch, self.epochs):
+            # train
+            training_start_time = time()
+            train_loss = self._train_epoch(train_data, epoch_idx, show_progress=show_progress)
+            self.train_loss_dict[epoch_idx] = sum(train_loss) if isinstance(train_loss, tuple) else train_loss
+            training_end_time = time()
+            train_loss_output = \
+                self._generate_train_loss_output(epoch_idx, training_start_time, training_end_time, train_loss)
+            if verbose:
+                self.logger.info(train_loss_output)
+            self._add_train_loss_to_tensorboard(epoch_idx, train_loss)
+            self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx},
+                                         head='train')
+
+            # eval
+            if self.eval_step <= 0 or not valid_data:
+                if saved:
+                    self._save_checkpoint(epoch_idx, verbose=verbose)
+                continue
+            if (epoch_idx + 1) % self.eval_step == 0:
+                valid_start_time = time()
+                valid_score, valid_result = self._valid_epoch(valid_data, show_progress=show_progress)
+                self.best_valid_score, self.cur_step, stop_flag, update_flag = early_stopping(
+                    valid_score,
+                    self.best_valid_score,
+                    self.cur_step,
+                    max_step=self.stopping_step,
+                    bigger=self.valid_metric_bigger
+                )
+                valid_end_time = time()
+                valid_score_output = (set_color("epoch %d evaluating", 'green') + " [" + set_color("time", 'blue')
+                                      + ": %.2fs, " + set_color("valid_score", 'blue') + ": %f]") % \
+                                     (epoch_idx, valid_end_time - valid_start_time, valid_score)
+                valid_result_output = set_color('valid result', 'blue') + ': \n' + dict2str(valid_result)
+                if verbose:
+                    self.logger.info(valid_score_output)
+                    self.logger.info(valid_result_output)
+                self.tensorboard.add_scalar('Vaild_score', valid_score, epoch_idx)
+                self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
+
+                if update_flag:
+                    if saved:
+                        self._save_checkpoint(epoch_idx, verbose=verbose)
+                    self.best_valid_result = valid_result
+
+                if callback_fn:
+                    callback_fn(epoch_idx, valid_score)
+
+                if stop_flag:
+                    stop_output = 'Finished training, best eval result in epoch %d' % \
+                                  (epoch_idx - self.cur_step * self.eval_step)
+                    if verbose:
+                        self.logger.info(stop_output)
+                    break
+
+                valid_step += 1
+
+        self._add_hparam_to_tensorboard(self.best_valid_score)
+
+        return self.best_valid_score, self.best_valid_result
+
+
+
+class DRTrainer(Trainer):
+    r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
+    functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
+    resume_checkpoint() and some other features helpful for model training and evaluation.
+
+    Generally speaking, this class can serve most recommender system models, If the training process of the model is to
+    simply optimize a single loss without involving any complex training strategies, such as adversarial learning,
+    pre-training and so on.
+
+    Initializing the Trainer needs two parameters: `config` and `model`. `config` records the parameters information
+    for controlling training and evaluation, such as `learning_rate`, `epochs`, `eval_step` and so on.
+    `model` is the instantiated object of a Model Class.
+
+    """
+
+    def __init__(self, config, model):
+        super(DRTrainer, self).__init__(config, model)
+        self.logger = getLogger()
+        self.tensorboard = get_tensorboard(self.logger)
+        self.wandblogger = WandbLogger(config)
+        self.learner = config['learner']
+        self.learning_rate = config['learning_rate']
+        self.epochs = config['epochs']
+        self.eval_step = min(config['eval_step'], self.epochs)
+        self.stopping_step = config['stopping_step']
+        self.clip_grad_norm = config['clip_grad_norm']
+        self.valid_metric = config['valid_metric'].lower()
+        self.valid_metric_bigger = config['valid_metric_bigger']
+        self.test_batch_size = config['eval_batch_size']
+        self.gpu_available = torch.cuda.is_available() and config['use_gpu']
+        self.device = config['device']
+        self.checkpoint_dir = config['checkpoint_dir']
+        ensure_dir(self.checkpoint_dir)
+        saved_model_file = '{}-{}.pth'.format(self.config['model'], get_local_time())
+        self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
+        self.weight_decay = config['weight_decay']
+
+        self.start_epoch = 0
+        self.cur_step = 0
+        self.best_valid_score = -np.inf if self.valid_metric_bigger else np.inf
+        self.best_valid_result = None
+        self.train_loss_dict = dict()
+
+        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
+        pst_path = config['pst_path'] if config['psv_path'] != None else 'init_ps/time_ps_week.pth'
+        self.psvmodel = torch.load(psv_path)
+        self.pstmodel = torch.load(pst_path)
+        self.imp_model = copy.deepcopy(self.model)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.learning_rate,
+                                        weight_decay=self.weight_decay)
+        self.imp_freq = config['imp_freq']
+        self.eval_type = config['eval_type']
+        self.eval_collector = Collector(config)
+        self.evaluator = Evaluator(config)
+        self.item_tensor = None
+        self.tot_item_num = None
+        self.none_criterion = nn.MSELoss(reduction='none')
+        self.sum_criterion = nn.MSELoss(reduction='sum')
+    def _train_epoch(self, train_data, epoch_idx, loss_func=None, show_progress=False):
+        r"""Train the model in an epoch
+
+        Args:
+            train_data (DataLoader): The train data.
+            epoch_idx (int): The current epoch id.
+            loss_func (function): The loss function of :attr:`model`. If it is ``None``, the loss function will be
+                :attr:`self.model.calculate_loss`. Defaults to ``None``.
+            show_progress (bool): Show the progress of training epoch. Defaults to ``False``.
+
+        Returns:
+            float/tuple: The sum of loss returned by all batches in this epoch. If the loss in each batch contains
+            multiple parts and the model return these multiple parts loss instead of the sum of loss, it will return a
+            tuple which includes the sum of loss in each part.
+        """
+
+
+
+        self.model.train()
+        self.imp_model.train()
+        total_loss = None
+        iter_data = (
+            tqdm(
+                train_data,
+                total=len(train_data),
+                ncols=100,
+                desc=set_color(f"Train {epoch_idx:>5}", 'pink'),
+            ) if show_progress else train_data
+        )
+        for batch_idx, interaction in enumerate(iter_data):
+            interaction = interaction.to(self.device)
+            self.imp_optimizer.zero_grad()
+
+            user = interaction[self.model.USER_ID]
+            item = interaction[self.model.ITEM_ID]
+            ti = interaction[self.model.TIME]
+            label = interaction[self.model.LABEL]
+            y_hat = self.model(user, item, ti)
+            e_hat = self.imp_model(user, item, ti)
+            e_obs = label - y_hat
+            delta2 = self.none_criterion(e_hat, e_obs)
+
+
+            wv = self.psvmodel.get_p(user, item)
+            wv = torch.reciprocal(wv)
+            wt = self.pstmodel.get_p(user, item, ti)
+            wt = torch.reciprocal(wt)
+            w = wv * wt
+            w = w.detach()
+            losses = torch.sum(w * delta2)
+
+
+            loss = losses
+            total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+            self._check_nan(loss)
+            loss.backward()
+            if self.clip_grad_norm:
+                clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+            self.imp_optimizer.step()
+            if self.gpu_available and show_progress:
+                iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+
+            self.optimizer.zero_grad()
+            all_time=torch.arange(0,7).to(self.device)
+            all_pair = torch.cartesian_prod(user, item,all_time)
+            #user_all, item_all,time_all = all_pair[:, 0], all_pair[:, 1],all_pair[:,2]
+            user_all, item_all = all_pair[:, 0], all_pair[:, 1]
+            time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
+            y_hat_all = self.model(user_all, item_all, time_all)
+            e_all = self.imp_model(user_all, item_all, time_all)
+            loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
+            loss_all = loss_all / len(y_hat_all)
+
+            y_hat = self.model(user, item, ti)
+            e_hat = self.imp_model(user, item, ti)
+            e_obs = self.none_criterion(y_hat, label)
+            e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
+            delta = e_obs - e_hat_obs
+
+            losses_obs = w * delta
+          #  losses = torch.sum(w * delta2)
+
+
+            loss_obs = torch.sum(losses_obs)/len(y_hat_all)
+
+            loss = loss_all+loss_obs
+            total_loss = loss.item() if total_loss is None else total_loss + loss.item()
+            self._check_nan(loss)
+            loss.backward()
+            if self.clip_grad_norm:
+                clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+            self.optimizer.step()
+            if self.gpu_available and show_progress:
+                iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+        return total_loss
+
+    def fit(self, train_data, valid_data=None, verbose=True, saved=True, show_progress=False, callback_fn=None):
+        r"""Train the model based on the train data and the valid data.
+
+        Args:
+            train_data (DataLoader): the train data
+            valid_data (DataLoader, optional): the valid data, default: None.
+                                               If it's None, the early_stopping is invalid.
+            verbose (bool, optional): whether to write training and evaluation information to logger, default: True
+            saved (bool, optional): whether to save the model parameters, default: True
+            show_progress (bool): Show the progress of training epoch and evaluate epoch. Defaults to ``False``.
+            callback_fn (callable): Optional callback function executed at end of epoch.
+                                    Includes (epoch_idx, valid_score) input arguments.
+
+        Returns:
+             (float, dict): best valid score and best valid result. If valid_data is None, it returns (-1, None)
+        """
+        if saved and self.start_epoch >= self.epochs:
+            self._save_checkpoint(-1, verbose=verbose)
+
+        self.eval_collector.data_collect(train_data)
+        if self.config['train_neg_sample_args'].get('dynamic', 'none') != 'none':
+            train_data.get_model(self.model)
+        valid_step = 0
+
+        for epoch_idx in range(self.start_epoch, self.epochs):
+            # train
+            training_start_time = time()
+            train_loss = self._train_epoch(train_data, epoch_idx, show_progress=show_progress)
+            self.train_loss_dict[epoch_idx] = sum(train_loss) if isinstance(train_loss, tuple) else train_loss
+            training_end_time = time()
+            train_loss_output = \
+                self._generate_train_loss_output(epoch_idx, training_start_time, training_end_time, train_loss)
+            if verbose:
+                self.logger.info(train_loss_output)
+            self._add_train_loss_to_tensorboard(epoch_idx, train_loss)
+            self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx},
+                                         head='train')
+
+            # eval
+            if self.eval_step <= 0 or not valid_data:
+                if saved:
+                    self._save_checkpoint(epoch_idx, verbose=verbose)
+                continue
+            if (epoch_idx + 1) % self.eval_step == 0:
+                valid_start_time = time()
+                valid_score, valid_result = self._valid_epoch(valid_data, show_progress=show_progress)
+                self.best_valid_score, self.cur_step, stop_flag, update_flag = early_stopping(
+                    valid_score,
+                    self.best_valid_score,
+                    self.cur_step,
+                    max_step=self.stopping_step,
+                    bigger=self.valid_metric_bigger
+                )
+                valid_end_time = time()
+                valid_score_output = (set_color("epoch %d evaluating", 'green') + " [" + set_color("time", 'blue')
+                                      + ": %.2fs, " + set_color("valid_score", 'blue') + ": %f]") % \
+                                     (epoch_idx, valid_end_time - valid_start_time, valid_score)
+                valid_result_output = set_color('valid result', 'blue') + ': \n' + dict2str(valid_result)
+                if verbose:
+                    self.logger.info(valid_score_output)
+                    self.logger.info(valid_result_output)
+                self.tensorboard.add_scalar('Vaild_score', valid_score, epoch_idx)
+                self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
+
+                if update_flag:
+                    if saved:
+                        self._save_checkpoint(epoch_idx, verbose=verbose)
+                    self.best_valid_result = valid_result
+
+                if callback_fn:
+                    callback_fn(epoch_idx, valid_score)
+
+                if stop_flag:
+                    stop_output = 'Finished training, best eval result in epoch %d' % \
+                                  (epoch_idx - self.cur_step * self.eval_step)
+                    if verbose:
+                        self.logger.info(stop_output)
+                    break
+
+                valid_step += 1
+
+        self._add_hparam_to_tensorboard(self.best_valid_score)
+
+        return self.best_valid_score, self.best_valid_result
+

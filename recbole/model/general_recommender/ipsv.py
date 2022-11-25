@@ -75,7 +75,7 @@ class IPSV(nn.Module):
         item_e = self.get_item_embedding(item)
         input=torch.cat([user_e,item_e],dim=1)
         w=self.mlp(input).squeeze()
-        po=self.psmodel(user,item)
+        po=self.psmodel.get_p(user,item)
         po[po < 0.25] = 0.25
         invp=torch.reciprocal(po)
         # lowBound = torch.ones_like(invp) + (invp - torch.ones_like(invp)) / (torch.ones_like(InvP) * args.Gama[0])

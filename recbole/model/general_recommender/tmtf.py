@@ -35,12 +35,16 @@ class TMTF(GeneralRecommender):
         self.WDAY = config['WDAY_FIELD']
         # load parameters info
         self.embedding_size = config['embedding_size']
-        self.n_times = config['K']
-        self.b_T = nn.Embedding(self.n_periods, 1)
+        self.K = config['K']
+        self.user_embedding = nn.Embedding(self.n_users, self.embedding_size)
+        self.item_embedding = nn.Embedding(self.n_items, self.embedding_size)
+        self.time_embedding = nn.Embedding(self.K, self.embedding_size)
+        self.b_T = nn.Embedding(self.K, 1)
         self.b_u = nn.Embedding(self.n_users, 1)
         self.b_i = nn.Embedding(self.n_items, 1)
         self.b = nn.Parameter(torch.Tensor(1))
         self.sigmoid=nn.Sigmoid()
+        self.loss_fct = nn.BCELoss(reduction='mean')
         self.apply(xavier_normal_initialization)
 
 
@@ -48,14 +52,15 @@ class TMTF(GeneralRecommender):
     def forward(self, user, item, time):
         user_e = self.user_embedding(user)
         item_e = self.item_embedding(item)
+        time=time.long()
         time_e = self.time_embedding(time)
-        if self.task.upper() == 'OIPT':
+        #if self.task.upper() == 'OIPT':
             # # u_v * (i_v + T_v) + b_T
-            uit_e = torch.mul(user_e, time_e + item_e).sum(-1).float() + self.b_T(time).squeeze()
-        else:
-            # # u_v * (i_v + T_v) + b + b_i + b_u + b_T
-            uit_e = torch.mul(user_e, time_e + item_e).sum(-1).float() + self.b + self.b_u(user).squeeze() + self.b_i(
-                item).squeeze() + self.b_T(time).squeeze()
+        uit_e = torch.mul(user_e, time_e + item_e).sum(-1).float() + self.b_T(time).squeeze()
+        # else:
+        #     # # u_v * (i_v + T_v) + b + b_i + b_u + b_T
+        #     uit_e = torch.mul(user_e, time_e + item_e).sum(-1).float() + self.b + self.b_u(user).squeeze() + self.b_i(
+        #         item).squeeze() + self.b_T(time).squeeze()
         # # u_v * i_v + u_v * T_v + i_v * T_v
         # uit_e = torch.mul(user_e, time_e + item_e).sum(-1).float() + torch.mul(item_e, time_e).sum(-1).float() + self.b_T(itemage).squeeze()
         # # v_i * (v_u + v_t) + b_T
@@ -68,19 +73,23 @@ class TMTF(GeneralRecommender):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
         label = interaction[self.LABEL]
-        time = interaction[self.WDAY]
+        time = interaction[self.WDAY].long()
+        pred = self.forward(user, item, time)
 
-
+        loss = self.loss_fct(pred, label)
         # loss = self.loss(output, label)
-        loss = torch.sum(losses)/len(losses)
         return loss
 
     def predict(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        time = interaction[self.TIME]
-        score = self.forward(user, item, time)
-        return score
+        time = interaction[self.WDAY]
+        pred = self.forward(user, item, time)
+        return pred
+
+    def get_p(self,user,item,time):
+        output = self.forward(user,item,time)
+        return output
 
     def full_sort_predict(self, interaction):
         user = interaction[self.USER_ID]

@@ -51,7 +51,7 @@ def run_recbole(model=None, dataset=None, config_file_list=None, config_dict=Non
     logger.info(model)
 
     # trainer loading and initialization
-    trainer = get_trainer(config['MODEL_TYPE'], config['model'],config['task'])(config, model)
+    trainer = get_trainer(config['MODEL_TYPE'], config['model'],config['task'],config['robust'])(config, model)
 
     # model training
     best_valid_score, best_valid_result = trainer.fit(

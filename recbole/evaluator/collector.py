@@ -225,8 +225,12 @@ class Collector(object):
             self.data_struct.update_tensor('rec.score', scores_tensor)
 
         if self.register.need('data.label'):
-            self.label_field = self.config['TIME_FIELD']
-            self.data_struct.update_tensor('data.label', interaction[self.label_field].to(self.device))
+            self.label_field = self.config['RATING_FIELD']
+            # labels=interaction[self.label_field]
+            labels=torch.where(interaction[self.label_field]>0,1,0)
+            # labels.float()
+            self.data_struct.update_tensor('data.label', labels.to(self.device))
+            #self.data_struct.update_tensor('data.label', interaction[self.label_field].to(self.device))
 
 
     def model_collect(self, model: torch.nn.Module):

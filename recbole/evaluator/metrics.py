@@ -408,6 +408,24 @@ class RMSE(LossMetric):
     def metric_info(self, preds, trues):
         return np.sqrt(mean_squared_error(trues, preds))
 
+class MSE(LossMetric):
+    r"""RMSE_ (also known as Root Mean Squared Error) is another error metric like `MAE`.
+
+    .. _RMSE: https://en.wikipedia.org/wiki/Root-mean-square_deviation
+
+    .. math::
+       \mathrm{RMSE} = \sqrt{\frac{1}{|{S}|} \sum_{(u, i) \in {S}}(\hat{r}_{u i}-r_{u i})^{2}}
+    """
+    smaller = True
+
+    def __init__(self, config):
+        super().__init__(config)
+
+    def calculate_metric(self, dataobject):
+        return self.output_metric('mse', dataobject)
+
+    def metric_info(self, preds, trues):
+        return mean_squared_error(trues, preds)
 
 class LogLoss(LossMetric):
     r"""Logloss_ (also known as logistic loss or cross-entropy loss) is used to evaluate the probabilistic

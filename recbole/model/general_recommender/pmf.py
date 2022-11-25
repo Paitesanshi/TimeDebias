@@ -36,12 +36,20 @@ class PMF(GeneralRecommender):
         # define layers and loss
         self.user_embedding = nn.Embedding(self.n_users, self.embedding_size)
         self.item_embedding = nn.Embedding(self.n_items, self.embedding_size)
-        self.loss = nn.MSELoss()
+        # self.loss = nn.MSELoss()
+        self.loss = nn.BCELoss()
         self.sigmoid = nn.Sigmoid()
         self.softmax = nn.Softmax()
+        self.T=0.1
         # parameters initialization
         self.apply(xavier_normal_initialization)
 
+        self.init_weights()
+
+    def init_weights(self):
+        initrange = 0.1
+        self.user_embedding.weight.data.uniform_(-initrange, initrange)
+        self.item_embedding.weight.data.uniform_(-initrange, initrange)
     def get_user_embedding(self, user):
         r""" Get a batch of user embedding tensor according to input user's id.
 
@@ -69,6 +77,7 @@ class PMF(GeneralRecommender):
         item_e = self.get_item_embedding(item)
         all_item_e = self.item_embedding.weight
         all_score = torch.matmul(user_e, all_item_e.transpose(0, 1))
+        all_score=all_score/self.T
         all_score=torch.softmax(all_score,dim=1)
         #score = torch.zeros(len(user))
         # for i in range(len(user)):
@@ -82,10 +91,10 @@ class PMF(GeneralRecommender):
     def calculate_loss(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        #label = interaction[self.LABEL]
-        rating=interaction[self.RATING]
+        label = interaction[self.LABEL]
+        #rating=interaction[self.RATING]
         output = self.forward(user, item)
-        loss = self.loss(output, rating)
+        loss = self.loss(output, label)
         return loss
 
     def predict(self, interaction):
@@ -94,6 +103,10 @@ class PMF(GeneralRecommender):
         score = self.forward(user, item)
         # score=self.sigmoid(score)
         return score
+    def get_p(self,user,item):
+        output = self.forward(user,item)
+        return output
+
 
     def full_sort_predict(self, interaction):
         user = interaction[self.USER_ID]

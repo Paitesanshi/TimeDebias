@@ -36,7 +36,7 @@ class DiscretePS(GeneralRecommender):
 
         # load parameters info
         self.embedding_size = config['embedding_size']
-        self.TIME = 'wday'
+        self.TIME = config['TIME_FIELD']
         self.K = config['K']
 
         # self.Ra
@@ -97,9 +97,12 @@ class DiscretePS(GeneralRecommender):
     def predict(self, interaction):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
+        time = interaction[self.TIME]
+        time = time.long()
         output = self.softmax(self.forward(user, item))
-        p=torch.argmax(output,dim=1)
-        return p
+
+        #p=torch.argmax(output,dim=1)
+        return output[range(len(user)), time]
 
     def get_p(self,user,item,time):
         time = time.long()
