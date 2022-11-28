@@ -23,8 +23,8 @@ epochs: 100
 train_batch_size: 1024
 learner: adam
 learning_rate: 0.001
-neg_sampling:
-  uniform: 10
+neg_sampling: ~
+#  uniform: 10
 
 eval_step: 1
 stopping_step: 20
@@ -35,7 +35,7 @@ loss_decimal_place: 4
 require_pow: False
 
 # evaluation settings
-eval_args:
+eval_args: 
   split: {'RS':[0.8,0.1,0.1]}
   group_by: user
   order: TO
@@ -48,7 +48,7 @@ valid_metric: rmse
 valid_metric_bigger: True
 eval_batch_size: 2048
 metric_decimal_place: 4
-normalize_field: ['timestamp','rating']
+normalize_field: ['timestamp']
 normalize_all: ~
 K: 7
 T: 100
@@ -59,11 +59,10 @@ benchmark_filename: ['train','valid','test']
 
 
 ips_freq: 2
-imp_freq: 2
 base_freq: 1
 gamma_v: 1.1
 gamma_t: 1.1
-task: 'dr'
-robust: True
+task: 'ips'
+robust: False
 psv_path: 'init_ps/item_ps_week.pth'
 pst_path: 'init_ps/time_ps_week.pth'

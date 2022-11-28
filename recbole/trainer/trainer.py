@@ -538,7 +538,8 @@ class RDIPSTrainer(Trainer):
         self.tensorboard = get_tensorboard(self.logger)
         self.wandblogger = WandbLogger(config)
         self.learner = config['learner']
-        self.learning_rate = config['learning_rate']
+        self.base_learning_rate = config['base_learning_rate']
+        self.w_learning_rate = config['w_learning_rate']
         self.epochs = config['epochs']
         self.eval_step = min(config['eval_step'], self.epochs)
         self.stopping_step = config['stopping_step']
@@ -566,10 +567,10 @@ class RDIPSTrainer(Trainer):
         pstmodel = torch.load(pst_path)
         self.base_ipsv = IPSV(config, psvmodel).to(self.device)
         self.base_ipst = IPST(config, pstmodel).to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        self.ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.learning_rate,
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
+        self.ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
                                          weight_decay=self.weight_decay)
-        self.ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.learning_rate,
+        self.ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.w_learning_rate,
                                          weight_decay=self.weight_decay)
         self.ips_freq = config['ips_freq']
         self.base_freq = config['base_freq']
@@ -781,6 +782,8 @@ class RDDRTrainer(Trainer):
         self.wandblogger = WandbLogger(config)
         self.learner = config['learner']
         self.learning_rate = config['learning_rate']
+        self.imp_learning_rate = config['imp_learning_rate']
+        self.w_learning_rate = config['w_learning_rate']
         self.epochs = config['epochs']
         self.eval_step = min(config['eval_step'], self.epochs)
         self.stopping_step = config['stopping_step']
@@ -812,15 +815,15 @@ class RDDRTrainer(Trainer):
         self.imp_ipst = IPST(config, pstmodel).to(self.device)
         self.imp_model = copy.deepcopy(self.model)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.learning_rate,
+        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
                                         weight_decay=self.weight_decay)
-        self.base_ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.learning_rate,
+        self.base_ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
                                               weight_decay=self.weight_decay)
-        self.base_ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.learning_rate,
+        self.base_ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.w_learning_rate,
                                               weight_decay=self.weight_decay)
-        self.imp_ipsv_optimizer = optim.Adam(self.imp_ipsv.parameters(), lr=self.learning_rate,
+        self.imp_ipsv_optimizer = optim.Adam(self.imp_ipsv.parameters(), lr=self.w_learning_rate,
                                              weight_decay=self.weight_decay)
-        self.imp_ipst_optimizer = optim.Adam(self.imp_ipst.parameters(), lr=self.learning_rate,
+        self.imp_ipst_optimizer = optim.Adam(self.imp_ipst.parameters(), lr=self.w_learning_rate,
                                              weight_decay=self.weight_decay)
         self.ips_freq = config['ips_freq']
         self.imp_freq = config['imp_freq']
@@ -1390,7 +1393,7 @@ class IPSTrainer(Trainer):
             wt[wt < 0.25] = 0.25
             wt = torch.reciprocal(wt)
             w = wv * wt
-
+            # w[w > 1] = 0.05
 
             losses = loss_func(interaction, w)
             if isinstance(losses, tuple):
@@ -1517,7 +1520,8 @@ class DRTrainer(Trainer):
         self.tensorboard = get_tensorboard(self.logger)
         self.wandblogger = WandbLogger(config)
         self.learner = config['learner']
-        self.learning_rate = config['learning_rate']
+        self.base_learning_rate = config['base_learning_rate']
+        self.imp_learning_rate = config['imp_learning_rate']
         self.epochs = config['epochs']
         self.eval_step = min(config['eval_step'], self.epochs)
         self.stopping_step = config['stopping_step']
@@ -1544,8 +1548,8 @@ class DRTrainer(Trainer):
         self.psvmodel = torch.load(psv_path)
         self.pstmodel = torch.load(pst_path)
         self.imp_model = copy.deepcopy(self.model)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.learning_rate,
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
+        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
                                         weight_decay=self.weight_decay)
         self.imp_freq = config['imp_freq']
         self.eval_type = config['eval_type']

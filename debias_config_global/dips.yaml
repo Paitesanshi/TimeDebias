@@ -1,6 +1,6 @@
 
 # general
-gpu_id: 1
+gpu_id: 2
 use_gpu: True
 seed: 2020
 state: INFO
@@ -23,11 +23,11 @@ epochs: 100
 train_batch_size: 1024
 learner: adam
 learning_rate: 0.001
-neg_sampling:
-  uniform: 10
+neg_sampling: ~
+#  uniform: 10
 
 eval_step: 1
-stopping_step: 20
+stopping_step: 50
 clip_grad_norm: ~
 # clip_grad_norm:  {'max_norm': 5, 'norm_type': 2}
 weight_decay: 0.0
@@ -35,7 +35,7 @@ loss_decimal_place: 4
 require_pow: False
 
 # evaluation settings
-eval_args:
+eval_args: 
   split: {'RS':[0.8,0.1,0.1]}
   group_by: user
   order: TO
@@ -48,7 +48,7 @@ valid_metric: rmse
 valid_metric_bigger: True
 eval_batch_size: 2048
 metric_decimal_place: 4
-normalize_field: ['timestamp','rating']
+normalize_field: ['timestamp']
 normalize_all: ~
 K: 7
 T: 100
@@ -57,12 +57,5 @@ sig: 0.5
 embedding_size: 64
 benchmark_filename: ['train','valid','test']
 
-
-ips_freq: 2
-base_freq: 1
-gamma_v: 1.1
-gamma_t: 1.1
-task: 'ips'
-robust: True
-psv_path: 'init_ps/item_ps_week.pth'
-pst_path: 'init_ps/time_ps_week.pth'
+task: 'dips'
+pst_path: 'init_ps/tmtf_time_ps_global.pth'

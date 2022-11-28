@@ -17,17 +17,16 @@ wandb_project: 'recbole'
 LABEL_FIELD : 'rating'
 RATING_FIELD : 'rating'
 TIME_FIELD: 'wday'
-#WDAY_FIELD: 'wday'
 # training settings
-epochs: 100
-train_batch_size: 1024
+epochs: 300
+train_batch_size: 2048
 learner: adam
 learning_rate: 0.001
 neg_sampling:
   uniform: 10
 
 eval_step: 1
-stopping_step: 20
+stopping_step: 50
 clip_grad_norm: ~
 # clip_grad_norm:  {'max_norm': 5, 'norm_type': 2}
 weight_decay: 0.0
@@ -45,7 +44,7 @@ metrics: ["MSE","RMSE","MAE","AUC","LogLoss"]
 topk: [10]
 load_col:  {'inter': ['user_id', 'item_id','rating','timestamp','wday']}
 valid_metric: rmse
-valid_metric_bigger: True
+valid_metric_bigger: False
 eval_batch_size: 2048
 metric_decimal_place: 4
 normalize_field: ['timestamp','rating']
@@ -59,11 +58,9 @@ benchmark_filename: ['train','valid','test']
 
 
 ips_freq: 2
-imp_freq: 2
 base_freq: 1
 gamma_v: 1.1
 gamma_t: 1.1
-task: 'dr'
-robust: False
+task: 'ps' #ps,ips,dr,dips
 psv_path: 'init_ps/item_ps_week.pth'
 pst_path: 'init_ps/time_ps_week.pth'

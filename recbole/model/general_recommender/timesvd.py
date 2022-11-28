@@ -31,6 +31,7 @@ class TimeSVD(GeneralRecommender):
         super(TimeSVD, self).__init__(config, dataset)
 
         self.LABEL = config["LABEL_FIELD"]
+        self.RATING = config["RATING_FIELD"]
         self.TIME = config['TIME_FIELD']
         self.lamb2 = 25
         self.lamb3 = 10
@@ -146,7 +147,7 @@ class TimeSVD(GeneralRecommender):
     def calculate_loss(self, interaction, weight=None):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
-        label = interaction[self.LABEL]
+        label = interaction[self.RATING]
         time = interaction[self.TIME]
 
         pred = self.forward(user, item, time)
