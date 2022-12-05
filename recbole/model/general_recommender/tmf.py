@@ -46,9 +46,10 @@ class TMF(GeneralRecommender):
         self.b = nn.Parameter(torch.Tensor(1))
         if self.task == 'ps':
             self.loss = nn.BCELoss(reduce='mean')
+            self.sigmoid = nn.Sigmoid()
         else:
             self.loss = nn.MSELoss(reduce=False)
-        self.sigmoid = nn.Sigmoid()
+            self.sigmoid = None
 
         # parameters initialization
         self.apply(xavier_normal_initialization)
@@ -71,6 +72,8 @@ class TMF(GeneralRecommender):
         time_e = self.get_time_embedding(time.long())
         output=torch.mul(user_e, item_e).sum(dim=1)
         output+=time_e.squeeze()+self.b+self.b_u(user).squeeze()+self.b_i(item).squeeze()
+        if self.sigmoid==None:
+            return output
         output=self.sigmoid(output)
         return output
 
@@ -87,7 +90,7 @@ class TMF(GeneralRecommender):
         loss = self.loss(output, label)
         if weight != None:
             loss *= weight
-            loss = torch.sum(loss) / len(loss)
+        loss = torch.sum(loss) / len(loss)
         return loss
 
     def predict(self, interaction):

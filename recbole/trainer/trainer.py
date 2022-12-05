@@ -565,8 +565,8 @@ class RDIPSTrainer(Trainer):
         pst_path = config['pst_path'] if config['pst_path'] != None else 'init_ps/time_ps_week.pth'
         psvmodel = torch.load(psv_path)
         pstmodel = torch.load(pst_path)
-        self.base_ipsv = IPSV(config, psvmodel).to(self.device)
-        self.base_ipst = IPST(config, pstmodel).to(self.device)
+        self.base_ipsv = IPSV(config, psvmodel,self.model.n_users,self.model.n_items).to(self.device)
+        self.base_ipst = IPST(config, pstmodel,self.model.n_users,self.model.n_items).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
         self.ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
                                          weight_decay=self.weight_decay)
@@ -809,10 +809,10 @@ class RDDRTrainer(Trainer):
         pst_path = config['pst_path'] if config['psv_path'] != None else 'init_ps/time_ps_week.pth'
         psvmodel = torch.load(psv_path)
         pstmodel = torch.load(pst_path)
-        self.base_ipsv = IPSV(config, psvmodel).to(self.device)
-        self.base_ipst = IPST(config, pstmodel).to(self.device)
-        self.imp_ipsv = IPSV(config, psvmodel).to(self.device)
-        self.imp_ipst = IPST(config, pstmodel).to(self.device)
+        self.base_ipsv = IPSV(config, psvmodel, self.model.n_users, self.model.n_items).to(self.device)
+        self.base_ipst = IPST(config, pstmodel, self.model.n_users, self.model.n_items).to(self.device)
+        self.imp_ipsv = IPSV(config, psvmodel, self.model.n_users, self.model.n_items).to(self.device)
+        self.imp_ipst = IPST(config, pstmodel, self.model.n_users, self.model.n_items).to(self.device)
         self.imp_model = copy.deepcopy(self.model)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
@@ -925,7 +925,10 @@ class RDDRTrainer(Trainer):
 
                 wv = self.imp_ipsv(user, item)
                 wt = self.imp_ipst(user, item, ti)
+                wv[wv<0.25]=0.25
+                wt[wt < 0.25] = 0.25
                 w = wv * wt
+                w=w.detach()
                 losses = torch.sum(w * delta2)
 
 
@@ -968,6 +971,8 @@ class RDDRTrainer(Trainer):
 
                 wv = self.imp_ipsv(user, item)
                 wt = self.imp_ipst(user, item, ti)
+                wv[wv < 0.25] = 0.25
+                wt[wt < 0.25] = 0.25
                 w = wv * wt
                 w = w.detach()
                 losses = torch.sum(w * delta2)
@@ -1190,7 +1195,10 @@ class DIPSTrainer(Trainer):
             user = interaction[self.model.USER_ID]
             item = interaction[self.model.ITEM_ID]
             ti = interaction[self.model.TIME]
-            w= self.pstmodel(user,item,ti)
+
+            w= self.pstmodel.get_p(user,item,ti)
+            w=w.detach()
+            w[w<0.25]=0.25
             w=torch.reciprocal(w)
             losses = loss_func(interaction, w)
             if isinstance(losses, tuple):
@@ -1386,10 +1394,10 @@ class IPSTrainer(Trainer):
             item = interaction[self.model.ITEM_ID]
             ti = interaction[self.model.TIME]
 
-            wv = self.psvmodel.get_p(user, item)
+            wv = self.psvmodel.get_p(user, item).detach()
             wv[wv < 0.25] = 0.25
             wv=torch.reciprocal(wv)
-            wt = self.pstmodel.get_p(user, item, ti)
+            wt = self.pstmodel.get_p(user, item, ti).detach()
             wt[wt < 0.25] = 0.25
             wt = torch.reciprocal(wt)
             w = wv * wt
@@ -1610,8 +1618,8 @@ class DRTrainer(Trainer):
             wt = torch.reciprocal(wt)
             w = wv * wt
             w = w.detach()
-            losses = torch.sum(w * delta2)
-
+            losses = torch.sum(w * delta2)/len(delta2)
+            #losses = torch.sum(w * delta2)
 
             loss = losses
             total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -1632,7 +1640,8 @@ class DRTrainer(Trainer):
             y_hat_all = self.model(user_all, item_all, time_all)
             e_all = self.imp_model(user_all, item_all, time_all)
             loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
-            loss_all = loss_all / len(y_hat_all)
+            loss_all = loss_all/len(e_all)
+
 
             y_hat = self.model(user, item, ti)
             e_hat = self.imp_model(user, item, ti)
@@ -1644,9 +1653,11 @@ class DRTrainer(Trainer):
           #  losses = torch.sum(w * delta2)
 
 
-            loss_obs = torch.sum(losses_obs)/len(y_hat_all)
-
-            loss = loss_all+loss_obs
+            loss_obs = torch.sum(losses_obs)/len(losses_obs)
+            #loss_obs = torch.sum(losses_obs)
+            loss=loss_obs+loss_all
+            #loss = (1-epoch_idx/200)*loss_all+loss_obs+self.weight_decay*self.model.l2_norm(user,item)
+            #loss =  loss_obs
             total_loss = loss.item() if total_loss is None else total_loss + loss.item()
             self._check_nan(loss)
             loss.backward()

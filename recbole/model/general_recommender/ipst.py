@@ -25,7 +25,7 @@ class IPST(nn.Module):
         MF model
     """
 
-    def __init__(self, config,psmodel):
+    def __init__(self, config,psmodel,n_users,n_items):
         super(IPST, self).__init__()
 
         self.LABEL = config['LABEL_FIELD']
@@ -34,14 +34,16 @@ class IPST(nn.Module):
         self.embedding_size = config['embedding_size']
 
         # define layers and loss
-
-        # self.user_embedding = nn.Embedding(self.n_users, self.embedding_size)
-        # self.item_embedding = nn.Embedding(self.n_items, self.embedding_size)
+        self.n_users=n_users
+        self.n_items=n_items
+        self.user_embedding = nn.Embedding(self.n_users, self.embedding_size)
+        self.item_embedding = nn.Embedding(self.n_items, self.embedding_size)
         self.loss = nn.MSELoss()
         self.gamma= config['gamma_t']
         self.psmodel=psmodel
-        self.user_embedding = torch.load('init_ps/user_embedding.pth')
-        self.item_embedding = torch.load('init_ps/item_embedding.pth')
+        # path='init_ps/'+config['dataset']
+        # self.user_embedding = torch.load(path+'_user_embedding.pth')
+        # self.item_embedding = torch.load(path+'_item_embedding.pth')
         #self.embedding_size = self.user_embedding.shape[1]
         self.mlp=MLPLayers([self.embedding_size*2+1,self.embedding_size,1],activation='sigmoid')
         # self.invP.weight = torch.nn.Parameter(ips_hat)
