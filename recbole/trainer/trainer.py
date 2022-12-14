@@ -423,8 +423,11 @@ class Trainer(AbstractTrainer):
             scores[history_index] = -np.inf
         return interaction, scores, positive_u, positive_i
 
-    def _neg_sample_batch_eval(self, batched_data):
+    def _neg_sample_batch_eval(self, batched_data,i=None):
         interaction, row_idx, positive_u, positive_i = batched_data
+        if i!=None:
+            idx = [id for id in range(len(interaction)) if interaction['wday'][id] == i ]
+            interaction = interaction[idx]
         batch_size = interaction.length
         if batch_size <= self.test_batch_size:
             origin_scores = self.model.predict(interaction.to(self.device))
@@ -496,8 +499,22 @@ class Trainer(AbstractTrainer):
         self.eval_collector.model_collect(self.model)
         struct = self.eval_collector.get_data_struct()
         result = self.evaluator.evaluate(struct)
-        self.wandblogger.log_eval_metrics(result, head='eval')
+        if self.config['case']==True:
+            for i in range(int(self.config['K'])):
+                for batch_idx, batched_data in enumerate(iter_data):
+                    interaction, scores, positive_u, positive_i = eval_func(batched_data,i)
+                    if self.gpu_available and show_progress:
+                        iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+                    if self.config['task'] == 'ps':
+                        self.eval_collector.eval_batch_collect_time(scores, interaction, positive_u, positive_i)
+                    else:
+                        self.eval_collector.eval_batch_collect(scores, interaction, positive_u, positive_i)
+                self.eval_collector.model_collect(self.model)
+                struct = self.eval_collector.get_data_struct()
+                metric_val=self.evaluator.metric_class['rmse'].calculate_metric(struct)
+                result.update({'rmse_'+str(i):metric_val['rmse']})
 
+        self.wandblogger.log_eval_metrics(result, head='eval')
         return result
 
     def _spilt_predict(self, interaction, batch_size):
@@ -975,7 +992,7 @@ class RDDRTrainer(Trainer):
                 wt[wt < 0.25] = 0.25
                 w = wv * wt
                 w = w.detach()
-                losses = torch.sum(w * delta2)
+                losses = torch.sum(w * delta2)/len(delta2)
 
 
                 loss = losses
@@ -993,15 +1010,25 @@ class RDDRTrainer(Trainer):
                 all_pair = torch.cartesian_prod(user, item)
                 user_all, item_all = all_pair[:, 0], all_pair[:, 1]
                 time_all=torch.randint(0,7,[len(user_all),]).to(self.device)
-                y_hat_all = self.model(user_all, item_all, time_all)
-                e_all = self.imp_model(user_all, item_all, time_all)
+                idx = torch.randint_like(user, 0, len(user_all))
+                idx = idx[:max(1, int(len(user) / 100))]
+                users = user_all[idx]
+                items = item_all[idx]
+                times = time_all[idx]
+                # y_hat_all = self.model(user_all, item_all, time_all)
+                # e_all = self.imp_model(user_all, item_all, time_all)
+                y_hat_all = self.model(users, items, times)
+                e_all = self.imp_model(users, items, times)
+                # y_hat_all = self.model(user_all, item_all, time_all)
+                # e_all = self.imp_model(user_all, item_all, time_all)
                 loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
 
                 y_hat = self.model(user, item, ti)
                 e_hat = self.imp_model(user, item, ti)
                 e_obs = self.none_criterion(y_hat, label)
                 e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
-                delta = e_obs - e_hat_obs
+                delta = self.none_criterion(e_obs, e_hat_obs)
+                # delta = e_obs - e_hat_obs
                 if self.robust:
                     losses_obs = w * delta
                     losses = torch.sum(w * delta2)
@@ -1009,7 +1036,7 @@ class RDDRTrainer(Trainer):
                     losses_obs = delta
                     losses = torch.sum(delta2)
 
-                loss_obs = torch.sum(losses_obs)
+                loss_obs = torch.sum(losses_obs)/len(losses_obs)
                 loss = loss_all+loss_obs
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
                 self._check_nan(loss)
@@ -1395,10 +1422,10 @@ class IPSTrainer(Trainer):
             ti = interaction[self.model.TIME]
 
             wv = self.psvmodel.get_p(user, item).detach()
-            wv[wv < 0.25] = 0.25
+            wv[wv < 0.75] = 0.75
             wv=torch.reciprocal(wv)
             wt = self.pstmodel.get_p(user, item, ti).detach()
-            wt[wt < 0.25] = 0.25
+            wt[wt < 0.75] = 0.75
             wt = torch.reciprocal(wt)
             w = wv * wt
             # w[w > 1] = 0.05
@@ -1618,8 +1645,8 @@ class DRTrainer(Trainer):
             wt = torch.reciprocal(wt)
             w = wv * wt
             w = w.detach()
-            losses = torch.sum(w * delta2)/len(delta2)
-            #losses = torch.sum(w * delta2)
+           # losses = torch.sum(w * delta2)
+            losses = torch.sum( delta2)/len(delta2)
 
             loss = losses
             total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -1637,24 +1664,31 @@ class DRTrainer(Trainer):
             #user_all, item_all,time_all = all_pair[:, 0], all_pair[:, 1],all_pair[:,2]
             user_all, item_all = all_pair[:, 0], all_pair[:, 1]
             time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
-            y_hat_all = self.model(user_all, item_all, time_all)
-            e_all = self.imp_model(user_all, item_all, time_all)
+            idx=torch.randint_like(user,0,len(user_all))
+            idx=idx[:max(1,int(len(user)/100))]
+            users=user_all[idx]
+            items = item_all[idx]
+            times = time_all[idx]
+            # y_hat_all = self.model(user_all, item_all, time_all)
+            # e_all = self.imp_model(user_all, item_all, time_all)
+            y_hat_all = self.model(users, items, times)
+            e_all = self.imp_model(users, items, times)
             loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
-            loss_all = loss_all/len(e_all)
+            loss_all = loss_all
 
 
             y_hat = self.model(user, item, ti)
             e_hat = self.imp_model(user, item, ti)
             e_obs = self.none_criterion(y_hat, label)
             e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
-            delta = e_obs - e_hat_obs
-
+            delta = self.none_criterion(e_obs ,e_hat_obs)
+            #delta=e_obs-e_hat_obs
             losses_obs = w * delta
           #  losses = torch.sum(w * delta2)
 
 
-            loss_obs = torch.sum(losses_obs)/len(losses_obs)
-            #loss_obs = torch.sum(losses_obs)
+            loss_obs = torch.sum(losses_obs)
+
             loss=loss_obs+loss_all
             #loss = (1-epoch_idx/200)*loss_all+loss_obs+self.weight_decay*self.model.l2_norm(user,item)
             #loss =  loss_obs
