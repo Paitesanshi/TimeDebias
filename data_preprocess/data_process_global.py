@@ -664,7 +664,7 @@ def sampling_from_biasData(full_path='', bias_path=''):  # 从整体数据计算
     max_count=0
     for index, row in full_data.iterrows():
         day = int(row['wday:float'])
-        item = row['timestamp:float']
+        item = row['item_id:token']
         term = (item, day)
         # day = tm.localtime(int(row['timestamp:float'])).tm_wday
         # nt=norm_time[int(row['timestamp:float'])]
@@ -680,7 +680,7 @@ def sampling_from_biasData(full_path='', bias_path=''):  # 从整体数据计算
         # item = row['item_id:token']
         # term = (item, day)
         day = int(row['wday:float'])
-        item = row['timestamp:float']
+        item = row['item_id:token']
         term = (item, day)
         # nt = norm_time[int(row['timestamp:float'])]
         # block = get_block(nt)
@@ -706,7 +706,7 @@ def sampling_from_biasData(full_path='', bias_path=''):  # 从整体数据计算
         # item = row['timestamp:float']
         # term = (item, day)
         day = int(row['wday:float'])
-        item = row['timestamp:float']
+        item = row['item_id:token']
         term = (item, day)
         # nt = norm_time[int(row['timestamp:float'])]
         # block = get_block(nt)
@@ -722,7 +722,7 @@ def sampling_from_biasData(full_path='', bias_path=''):  # 从整体数据计算
     max_bias_data_count = 0
     for index, row in bias_data.iterrows():
         day = int(row['wday:float'])
-        item = row['timestamp:float']
+        item = row['item_id:token']
         term = (item, day)
         # nt = norm_time[int(row['timestamp:float'])]
         # block = get_block(nt)
@@ -785,7 +785,7 @@ def split_unbias_TO2(unbias_path=''):  # 将unbias_data划分为valid set和test
         # item = row['timestamp:float']
         # term = (item, day)
         day = int(row['wday:float'])
-        item = row['timestamp:float']
+        item = row['item_id:float']
         term = (item, day)
         # nt = norm_time[int(row['timestamp:float'])]
         # block = get_block(nt)
@@ -805,7 +805,7 @@ def split_unbias_TO2(unbias_path=''):  # 将unbias_data划分为valid set和test
         # item = row['timestamp:float']
         # term = (item, day)
         day = int(row['wday:float'])
-        item = row['timestamp:float']
+        item = row['item_id:float']
         term = (item, day)
         # nt = norm_time[int(row['timestamp:float'])]
         # block = get_block(nt)
@@ -829,6 +829,110 @@ def split_unbias_TO2(unbias_path=''):  # 将unbias_data划分为valid set和test
     validset.to_csv(data_name+'/'+data_name+".valid.inter", header=True, index=False, sep='\t')
     testset.to_csv(data_name+'/'+data_name+".test.inter", header=True, index=False, sep='\t')
 
+def sampling_for_biasData(full_path='', bias_path=''):  # 从整体数据计算流行度，并基于此，从bias_data中采样50%作为unbias_data  (key)
+    full_data = pd.read_csv(full_path, header=0,
+                            names=['user_id:token', 'item_id:token', 'rating:float', 'timestamp:float','wday:float'],
+                            sep='\t')
+    # print('full_data\n', full_data)
+    bias_data = pd.read_csv(bias_path, header=0,
+                            names=['user_id:token', 'item_id:token', 'rating:float', 'timestamp:float','wday:float'],
+                            sep='\t')
+    # print('bias_data\n', bias_data)
+
+    count=[]
+    cnt={}
+    max_count=0
+    for index, row in full_data.iterrows():
+        day = int(row['wday:float'])
+        item = row['item_id:token']
+        term = (item, day)
+        # day = tm.localtime(int(row['timestamp:float'])).tm_wday
+        # nt=norm_time[int(row['timestamp:float'])]
+        # block=get_block(nt)
+        # item=row['item_id:token']
+        # term=(item,block)
+        if term not in cnt:
+            cnt[term]=1
+        else:
+            cnt[term] += 1
+    for index, row in full_data.iterrows():
+        # day = tm.localtime(int(row['timestamp:float'])).tm_wday
+        # item = row['item_id:token']
+        # term = (item, day)
+        day = int(row['wday:float'])
+        item = row['item_id:float']
+        term = (item, day)
+        # nt = norm_time[int(row['timestamp:float'])]
+        # block = get_block(nt)
+        # item = row['item_id:token']
+        # term = (item, block)
+        if cnt[term]>max_count:
+            max_count=cnt[term]
+        count.append(cnt[term])
+    #count = full_data['item_id:token'].value_counts()
+    # print('count\n', count)
+
+    # id, num = np.unique(count.values, return_counts=True)
+    # print('频数', id)
+    # print('次数', num)
+
+    # max_count = count.max()
+#    relative_count = max_count / count  # 相对流行度的倒数
+ #   print('relative_count\n', relative_count)
+    popularity=[]
+    sampling_weight=[]
+    for index, row in bias_data.iterrows():
+        # day = tm.localtime(int(row['timestamp:float'])).tm_wday
+        # item = row['timestamp:float']
+        # term = (item, day)
+        day = int(row['wday:float'])
+        item = row['item_id:float']
+        term = (item, day)
+        # nt = norm_time[int(row['timestamp:float'])]
+        # block = get_block(nt)
+        # item = row['item_id:token']
+        # term = (item, block)
+        popularity.append(cnt[term])
+        #popularity = count[bias_data['item_id:token']]
+        sampling_weight.append(max_count / cnt[term] )
+
+    bias_data.insert(bias_data.shape[1], 'popularity', popularity)
+    bias_data.insert(bias_data.shape[1], 'sampling_weight', sampling_weight)
+    bias_data_cnt = {}
+    max_bias_data_count = 0
+    for index, row in bias_data.iterrows():
+        day = int(row['wday:float'])
+        item = row['item_id:float']
+        term = (item, day)
+        # nt = norm_time[int(row['timestamp:float'])]
+        # block = get_block(nt)
+        # item = row['item_id:token']
+        # term = (item, block)
+        if term not in bias_data_cnt:
+            bias_data_cnt[term] = 1
+        else:
+            bias_data_cnt[term] += 1
+        if bias_data_cnt[term] > max_bias_data_count:
+            max_bias_data_count = bias_data_cnt[term]
+    print("bias_max_pop:", max_bias_data_count)
+    data_samples = bias_data.sample(frac=0.5, random_state=2022, weights='sampling_weight')
+
+    id, num = np.unique(bias_data['popularity'], return_counts=True)
+    print('id', id)
+    print('num', num)
+
+    id, num = np.unique(data_samples['popularity'], return_counts=True)
+    print('id', id)
+    print('num', num)
+    data_samples.to_csv(data_name+"_unbias.csv", header=True, index=False, sep='\t',
+                        columns=['user_id:token', 'item_id:token', 'rating:float', 'timestamp:float','wday:float'])
+    intervened_train=pd.concat([bias_data, data_samples, data_samples]).drop_duplicates(keep=False)
+    #intervened_train.drop(['popularity','sampling_weight'])
+    # intervened_train.to_csv('ml_train_bias.csv',header=False,mode='a', index=False, sep='\t',columns=['user_id:token', 'item_id:token', 'rating:float', 'timestamp:float','wday:float'])
+    intervened_train.to_csv(data_name+'/'+data_name+'.train.inter', header=False, mode='a', index=False, sep='\t',
+                            columns=['user_id:token', 'item_id:token', 'rating:float', 'timestamp:float', 'wday:float'])
+
+
 import os
 def mkdir(path):
     folder = os.path.exists(path)
@@ -846,6 +950,7 @@ if __name__ == '__main__':
 
     mkdir(data_name)
     split_fulldata_TO2(data_name+'.inter')
+
     sampling_from_biasData(full_path=data_name+'_full.csv', bias_path=data_name+'_test_bias.csv')
     split_unbias_TO2(unbias_path=data_name+'_unbias.csv')
     judge_userID(train_path=data_name+'/'+data_name+'.train.inter', test_path=data_name+'/'+data_name+'.test.inter')

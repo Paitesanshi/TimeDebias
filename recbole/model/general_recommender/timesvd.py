@@ -57,7 +57,7 @@ class TimeSVD(GeneralRecommender):
             self.history,
             self.history_value,
             self.history_len,
-        ) = dataset.history_item_matrix()
+        ) = dataset.history_item_matrix(value_field='timestamp')
         self.avg_u = torch.mean(self.history_value, dim=1).to(self.device)
         self.avg = torch.mean(self.history_value).to(self.device)
         self.bi = torch.zeros(self.n_items).to(self.device)
@@ -130,11 +130,11 @@ class TimeSVD(GeneralRecommender):
         self.bias_item_binvalue = self.get_bin(time)
         self.bias_user_tvalue = torch.mul(alpha_value, dev)
         bias_user_time = bias_u + self.bias_user_tvalue
-        bias_user_time = bias_user_time + self.btday[user]
+        # bias_user_time = bias_user_time + self.btday[user]
         bias_item_time = bias_i + self.bias_item_binvalue
-        cui = self.bcu[user]
-        cui = cui + self.wcu[self.maxday_cat[user]]
-        bias_item_time = torch.mul(bias_item_time, cui)
+        # cui = self.bcu[user]
+        # cui = cui + self.wcu[self.maxday_cat[user]]
+        #bias_item_time = torch.mul(bias_item_time, cui)
         bias_vector = torch.mul(user_e, item_e).sum(dim=1)
         pred = self.avg + bias_user_time + bias_item_time + bias_vector
         # rating = self.avg_u[user] + self.bi[item] + self.bu[user] + torch.sum(
@@ -144,6 +144,12 @@ class TimeSVD(GeneralRecommender):
     def l2_loss(self, t):
         return t.pow(2)
 
+    def l2_norm(self, users, items):
+        users = torch.unique(users)
+        items = torch.unique(items)
+
+        l2_loss = (torch.sum(self.pu(users) ** 2) + torch.sum(self.qi(items) ** 2)) / 2
+        return l2_loss
     def calculate_loss(self, interaction, weight=None):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]

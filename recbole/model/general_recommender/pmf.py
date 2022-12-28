@@ -40,11 +40,11 @@ class PMF(GeneralRecommender):
         self.loss = nn.BCELoss()
         self.sigmoid = nn.Sigmoid()
         self.softmax = nn.Softmax()
-        self.T=0.1
+        self.T=0.08
         # parameters initialization
         self.apply(xavier_normal_initialization)
 
-        self.init_weights()
+        #self.init_weights()
 
     def init_weights(self):
         initrange = 0.1

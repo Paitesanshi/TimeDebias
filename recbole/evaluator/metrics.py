@@ -403,6 +403,7 @@ class RMSE(LossMetric):
         super().__init__(config)
 
     def calculate_metric(self, dataobject):
+
         return self.output_metric('rmse', dataobject)
 
     def metric_info(self, preds, trues):

@@ -9,6 +9,13 @@
           </advancedOptions>
         </fileTransfer>
       </webServer>
+      <webServer id="5fae4bbe-f048-40a5-951a-fba4b4831367" name="164(项目级别)">
+        <fileTransfer accessType="SFTP" host="183.174.229.164" port="5102" sshConfigId="1c950418-df62-424f-8a77-d5308a6b6d6e" sshConfig="164" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>

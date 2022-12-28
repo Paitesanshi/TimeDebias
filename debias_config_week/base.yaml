@@ -22,7 +22,7 @@ TIME_FIELD: 'wday'
 epochs: 100
 train_batch_size: 1024
 learner: adam
-learning_rate: 0.0001
+learning_rate: 0.001
 neg_sampling: ~
 #  uniform: 10
 
@@ -48,7 +48,7 @@ valid_metric: rmse
 valid_metric_bigger: True
 eval_batch_size: 2048
 metric_decimal_place: 4
-normalize_field: ['timestamp']
+normalize_field: []
 normalize_all: ~
 K: 7
 T: 100

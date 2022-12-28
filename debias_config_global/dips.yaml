@@ -58,4 +58,4 @@ embedding_size: 64
 benchmark_filename: ['train','valid','test']
 
 task: 'dips'
-pst_path: 'init_ps/tmtf_time_ps_global.pth'
+pst_path: 'init_ps/tmf_time_ps_global.pth'

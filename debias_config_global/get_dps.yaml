@@ -62,5 +62,5 @@ base_freq: 1
 gamma_v: 1.1
 gamma_t: 1.1
 task: 'ps' #ps,ips,dr,dips
-psv_path: 'init_ps/item_ps_week.pth'
+psv_path: 'init_ps/item_ps_global.pth'
 pst_path: 'init_ps/tmtf_time_ps_global.pth'

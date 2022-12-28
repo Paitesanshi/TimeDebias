@@ -141,3 +141,6 @@ cython_debug/
 !/log/
 !/log_tensorboard/
 !/saved/
+!/init_ps/
+*.csv
+*.pth

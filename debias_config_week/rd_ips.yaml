@@ -23,6 +23,7 @@ epochs: 100
 train_batch_size: 1024
 learner: adam
 learning_rate: 0.001
+w_learning_rate: 0.0001
 neg_sampling: ~
 #  uniform: 10
 

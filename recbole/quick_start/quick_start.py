@@ -86,7 +86,8 @@ def objective_function(config_dict=None, config_file_list=None, saved=True):
     train_data, valid_data, test_data = data_preparation(config, dataset)
     init_seed(config['seed'], config['reproducibility'])
     model = get_model(config['model'])(config, train_data.dataset).to(config['device'])
-    trainer = get_trainer(config['MODEL_TYPE'], config['model'])(config, model)
+    trainer = get_trainer(config['MODEL_TYPE'], config['model'],config['task'],config['robust'])(config, model)
+    #trainer = get_trainer(config['MODEL_TYPE'], config['model'])(config, model)
     best_valid_score, best_valid_result = trainer.fit(train_data, valid_data, verbose=False, saved=saved)
     test_result = trainer.evaluate(test_data, load_best_model=saved)
 

@@ -24,7 +24,7 @@ train_batch_size: 1024
 learner: adam
 base_learning_rate: 0.001
 imp_learning_rate: 0.01
-w_learning_rate: 0.001
+w_learning_rate: 0.00001
 neg_sampling: ~
 #  uniform: 10
 

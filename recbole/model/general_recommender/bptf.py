@@ -28,6 +28,7 @@ class BPTF(GeneralRecommender):
     def __init__(self, config, dataset):
         super(BPTF, self).__init__(config, dataset)
 
+        self.task = config['task']
         self.LABEL = config['LABEL_FIELD']
         self.RATING = config['RATING_FIELD']
         self.TIME = config['TIME_FIELD']
@@ -39,8 +40,14 @@ class BPTF(GeneralRecommender):
         self.user_embedding = nn.Embedding(self.n_users, self.embedding_size)
         self.item_embedding = nn.Embedding(self.n_items, self.embedding_size)
         self.time_embedding = nn.Embedding(self.n_times, self.embedding_size)
-        self.loss = nn.MSELoss(reduce=False)
-        self.sigmoid = nn.Sigmoid()
+        if self.task == 'ps':
+            self.loss = nn.BCELoss(reduce='mean')
+            self.sigmoid = nn.Sigmoid()
+        else:
+            self.loss = nn.MSELoss(reduce=False)
+            self.sigmoid = None
+        # self.loss = nn.MSELoss(reduce=False)
+        # self.sigmoid = nn.Sigmoid()
 
         # parameters initialization
         self.apply(xavier_normal_initialization)
@@ -77,20 +84,24 @@ class BPTF(GeneralRecommender):
         user_e = self.get_user_embedding(user)
         item_e = self.get_item_embedding(item)
         time_e = self.get_time_embedding(day.long())
-        return torch.mul(torch.mul(user_e, item_e),time_e).sum(dim=1)
+        # return torch.mul(torch.mul(user_e, item_e),time_e).sum(dim=1)
+        return torch.mul(user_e, item_e+time_e).sum(dim=1)
 
 
     def calculate_loss(self, interaction, weight=None):
         user = interaction[self.USER_ID]
         item = interaction[self.ITEM_ID]
         day=interaction[self.TIME].long()
-        #rating = interaction[self.RATING]
-        label = interaction[self.LABEL]
+        if self.task=='ps':
+            label = interaction[self.LABEL]
+        else:
+            label = interaction[self.RATING]
         output = self.forward(user, item,day)
-        losses = self.loss(output, label)
+        loss = self.loss(output, label)
         if weight != None:
-            losses *= weight
-        loss = torch.sum(losses) / len(losses)
+            loss *= weight
+        if self.task!='ps':
+            loss = torch.sum(loss) / len(loss)
         return loss
 
     def predict(self, interaction):

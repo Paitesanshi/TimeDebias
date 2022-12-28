@@ -842,6 +842,7 @@ class RDDRTrainer(Trainer):
                                              weight_decay=self.weight_decay)
         self.imp_ipst_optimizer = optim.Adam(self.imp_ipst.parameters(), lr=self.w_learning_rate,
                                              weight_decay=self.weight_decay)
+        self.sr = float(config['sample_rate'])
         self.ips_freq = config['ips_freq']
         self.imp_freq = config['imp_freq']
         self.base_freq = config['base_freq']
@@ -1006,17 +1007,32 @@ class RDDRTrainer(Trainer):
                     iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
 
                 self.optimizer.zero_grad()
-                all_time=torch.arange(0,7).to(self.device)
-                all_pair = torch.cartesian_prod(user, item)
-                user_all, item_all = all_pair[:, 0], all_pair[:, 1]
-                time_all=torch.randint(0,7,[len(user_all),]).to(self.device)
-                idx = torch.randint_like(user, 0, len(user_all))
-                idx = idx[:max(1, int(len(user) / 100))]
-                users = user_all[idx]
-                items = item_all[idx]
-                times = time_all[idx]
-                # y_hat_all = self.model(user_all, item_all, time_all)
-                # e_all = self.imp_model(user_all, item_all, time_all)
+                all_time = torch.arange(0, 7).to(self.device)
+                all_pair = torch.cartesian_prod(user, item, all_time)
+                user_all, item_all, time_all = all_pair[:, 0], all_pair[:, 1], all_pair[:, 2]
+
+                # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
+                # time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
+                tot = int(len(user) * self.sr)
+                idx = torch.randint(0, len(user_all), (tot,)).to(self.device)
+                users = user_all[idx].to(self.device)
+                items = item_all[idx].to(self.device)
+                times = time_all[idx].to(self.device)
+                times = times.float()
+                id2 = torch.randint(0, len(user), (tot,)).to(self.device)
+                users = user.scatter(0, id2, users)
+                items = item.scatter(0, id2, items)
+                times = ti.scatter(0, id2, times)
+                # all_time=torch.arange(0,7).to(self.device)
+                # all_pair = torch.cartesian_prod(user, item)
+                # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
+                # time_all=torch.randint(0,7,[len(user_all),]).to(self.device)
+                # idx = torch.randint_like(user, 0, len(user_all))
+                # idx = idx[:max(1, int(len(user) / 500))]
+                # users = user_all[idx]
+                # items = item_all[idx]
+                # times = time_all[idx]
+
                 y_hat_all = self.model(users, items, times)
                 e_all = self.imp_model(users, items, times)
                 # y_hat_all = self.model(user_all, item_all, time_all)
@@ -1586,6 +1602,7 @@ class DRTrainer(Trainer):
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
         self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
                                         weight_decay=self.weight_decay)
+        self.sr=float(config['sample_rate'])
         self.imp_freq = config['imp_freq']
         self.eval_type = config['eval_type']
         self.eval_collector = Collector(config)
@@ -1660,15 +1677,21 @@ class DRTrainer(Trainer):
 
             self.optimizer.zero_grad()
             all_time=torch.arange(0,7).to(self.device)
-            all_pair = torch.cartesian_prod(user, item)
-            #user_all, item_all,time_all = all_pair[:, 0], all_pair[:, 1],all_pair[:,2]
-            user_all, item_all = all_pair[:, 0], all_pair[:, 1]
-            time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
-            idx=torch.randint_like(user,0,len(user_all))
-            idx=idx[:max(1,int(len(user)/100))]
-            users=user_all[idx]
-            items = item_all[idx]
-            times = time_all[idx]
+            all_pair = torch.cartesian_prod(user, item,all_time)
+            user_all, item_all,time_all = all_pair[:, 0], all_pair[:, 1],all_pair[:,2]
+            
+            # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
+            # time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
+            tot=int(len(user)*self.sr)
+            idx=torch.randint(0,len(user_all),(tot,)).to(self.device)
+            users=user_all[idx].to(self.device)
+            items=item_all[idx].to(self.device)
+            times=time_all[idx].to(self.device)
+            times=times.float()
+            id2=torch.randint(0,len(user),(tot,)).to(self.device)
+            users=user.scatter(0,id2,users)
+            items=item.scatter(0,id2,items)
+            times=ti.scatter(0,id2,times)
             # y_hat_all = self.model(user_all, item_all, time_all)
             # e_all = self.imp_model(user_all, item_all, time_all)
             y_hat_all = self.model(users, items, times)

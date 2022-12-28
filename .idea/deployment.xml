@@ -1,11 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="qiqi@183.174.229.159:5102 key" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="164" remoteFilesAllowedToDisappearOnAutoupload="false" showNewOnTargetInSync="false">
     <serverData>
       <paths name="156">
         <serverdata>
           <mappings>
             <mapping deploy="/TimeDebias" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="163">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="163 (1)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/pycharm_project_910" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="164">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/chenxu/wanglei/TimeDebias" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>
