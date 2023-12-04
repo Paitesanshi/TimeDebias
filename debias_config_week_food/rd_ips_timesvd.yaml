@@ -6,23 +6,23 @@ seed: 2020
 state: INFO
 reproducibility: True
 data_path: 'dataset/'
-checkpoint_dir: 'saved'
+checkpoint_dir: '/data00/wanglei/saved'
 show_progress: False
 save_dataset: False
 dataset_save_path: ~
 save_dataloaders: False
 dataloaders_save_path: ~
-log_wandb: False
+log_wandb: True
 wandb_project: 'recbole'
 LABEL_FIELD : 'rating'
 RATING_FIELD : 'rating'
 TIME_FIELD: 'wday'
 #WDAY_FIELD: 'wday'
 # training settings
-epochs: 100
-train_batch_size: 1024
+epochs: 300
+train_batch_size: 4096
 learner: adam
-base_learning_rate: 0.01
+base_learning_rate: 0.001
 w_learning_rate: 0.0001
 neg_sampling: ~
 #  uniform: 10

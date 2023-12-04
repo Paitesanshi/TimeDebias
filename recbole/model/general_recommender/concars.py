@@ -142,7 +142,7 @@ class CoNCARS(GeneralRecommender):
         z = torch.cat([cnn_output_uy, cnn_output_ui, cnn_output_xy, cnn_output_xi], dim=1)
         output = self.predict_layers(z)
 
-        return output
+        return output.squeeze()
 
     def calculate_loss(self, interaction, weight=None):
         user = interaction[self.USER_ID]

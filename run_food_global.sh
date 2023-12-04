@@ -19,8 +19,8 @@ python run_recbole.py --config_files=debias_config_global_food/rd_ips.yaml  --mo
 
 
 #dr
-#python run_recbole.py --config_files=debias_config_global_food/dr.yaml  --model=TMF --dataset=food_global #get dr
-#python run_recbole.py --config_files=debias_config_global_food/rd_dr.yaml  --model=TMF --dataset=food_global #get rd_dr
+#python run_recbole.py --config_files=debias_config_global_food/dr.yaml  --model=TMF --dataset=food_global_old #get dr
+#python run_recbole.py --config_files=debias_config_global_food/rd_dr.yaml  --model=TMF --dataset=food_global_old #get rd_dr
 
 
 python run_recbole.py --config_files=debias_config_global_food/dips_tmf.yaml  --model=BPTF --dataset=food_global #x loss nan get dancer_ips
@@ -34,8 +34,8 @@ python run_recbole.py --config_files=debias_config_global_food/rd_ips.yaml  --mo
 
 
 #dr
-#python run_recbole.py --config_files=debias_config_global_food/dr.yaml  --model=BPTF --dataset=food_global #get dr
-#python run_recbole.py --config_files=debias_config_global_food/rd_dr.yaml  --model=BPTF --dataset=food_global #get rd_dr
+#python run_recbole.py --config_files=debias_config_global_food/dr.yaml  --model=BPTF --dataset=food_global_old #get dr
+#python run_recbole.py --config_files=debias_config_global_food/rd_dr.yaml  --model=BPTF --dataset=food_global_old #get rd_dr
 
 #base
 python run_recbole.py --config_files=debias_config_global_food/base.yaml  --model=TMF --dataset=food_global #get base

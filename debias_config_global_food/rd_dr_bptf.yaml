@@ -12,7 +12,7 @@ save_dataset: False
 dataset_save_path: ~
 save_dataloaders: False
 dataloaders_save_path: ~
-log_wandb: False
+log_wandb: True
 wandb_project: 'recbole'
 LABEL_FIELD : 'rating'
 RATING_FIELD : 'rating'
@@ -59,7 +59,7 @@ sig: 0.5
 embedding_size: 32
 benchmark_filename: ['train','valid','test']
 
-sample_rate: 0.1
+
 ips_freq: 5
 imp_freq: 5
 base_freq: 1

@@ -112,6 +112,7 @@ class Trainer(AbstractTrainer):
         self.tot_item_num = None
         self.psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
         self.pst_path = config['pst_path'] if config['psv_path'] != None else 'init_ps/time_ps_week.pth'
+
     def _build_optimizer(self, **kwargs):
         r"""Init the Optimizer
 
@@ -423,10 +424,10 @@ class Trainer(AbstractTrainer):
             scores[history_index] = -np.inf
         return interaction, scores, positive_u, positive_i
 
-    def _neg_sample_batch_eval(self, batched_data,i=None):
+    def _neg_sample_batch_eval(self, batched_data, i=None):
         interaction, row_idx, positive_u, positive_i = batched_data
-        if i!=None:
-            idx = [id for id in range(len(interaction)) if interaction['wday'][id] == i ]
+        if i != None:
+            idx = [id for id in range(len(interaction)) if interaction['wday'][id] == i]
             interaction = interaction[idx]
         batch_size = interaction.length
         if batch_size <= self.test_batch_size:
@@ -499,10 +500,10 @@ class Trainer(AbstractTrainer):
         self.eval_collector.model_collect(self.model)
         struct = self.eval_collector.get_data_struct()
         result = self.evaluator.evaluate(struct)
-        if self.config['case']==True:
+        if self.config['case'] == True:
             for i in range(int(self.config['K'])):
                 for batch_idx, batched_data in enumerate(iter_data):
-                    interaction, scores, positive_u, positive_i = eval_func(batched_data,i)
+                    interaction, scores, positive_u, positive_i = eval_func(batched_data, i)
                     if self.gpu_available and show_progress:
                         iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
                     if self.config['task'] == 'ps':
@@ -511,8 +512,8 @@ class Trainer(AbstractTrainer):
                         self.eval_collector.eval_batch_collect(scores, interaction, positive_u, positive_i)
                 self.eval_collector.model_collect(self.model)
                 struct = self.eval_collector.get_data_struct()
-                metric_val=self.evaluator.metric_class['rmse'].calculate_metric(struct)
-                result.update({'rmse_'+str(i):metric_val['rmse']})
+                metric_val = self.evaluator.metric_class['rmse'].calculate_metric(struct)
+                result.update({'rmse_' + str(i): metric_val['rmse']})
 
         self.wandblogger.log_eval_metrics(result, head='eval')
         return result
@@ -582,17 +583,22 @@ class RDIPSTrainer(Trainer):
         pst_path = config['pst_path'] if config['pst_path'] != None else 'init_ps/time_ps_week.pth'
         psvmodel = torch.load(psv_path)
         pstmodel = torch.load(pst_path)
-        self.base_ipsv = IPSV(config, psvmodel,self.model.n_users,self.model.n_items).to(self.device)
-        self.base_ipst = IPST(config, pstmodel,self.model.n_users,self.model.n_items).to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
-        self.ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
+        self.base_ipsv = IPSV(config, psvmodel, self.model.n_users, self.model.n_items).to(self.device)
+        self.base_ipst = IPST(config, pstmodel, self.model.n_users, self.model.n_items).to(self.device)
+        # self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
+        # self.ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
+        #                                  weight_decay=self.weight_decay)
+        # self.ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.w_learning_rate,
+        #                                  weight_decay=self.weight_decay)
+        self.optimizer = optim.SGD(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
+        self.ipsv_optimizer = optim.SGD(self.base_ipsv.parameters(), lr=self.w_learning_rate,
                                          weight_decay=self.weight_decay)
-        self.ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.w_learning_rate,
+        self.ipst_optimizer = optim.SGD(self.base_ipst.parameters(), lr=self.w_learning_rate,
                                          weight_decay=self.weight_decay)
         self.ips_freq = config['ips_freq']
         self.base_freq = config['base_freq']
         self.eval_type = config['eval_type']
-        self.robust=config['robust']
+        self.robust = config['robust']
         self.eval_collector = Collector(config)
         self.evaluator = Evaluator(config)
         self.item_tensor = None
@@ -673,7 +679,7 @@ class RDIPSTrainer(Trainer):
                     wt = self.base_ipst(user, item, ti)
                     w = wv * wt
                 else:
-                    w=None
+                    w = None
                 losses = loss_func(interaction, w)
                 if isinstance(losses, tuple):
                     loss = sum(losses)
@@ -815,7 +821,7 @@ class RDDRTrainer(Trainer):
         saved_model_file = '{}-{}.pth'.format(self.config['model'], get_local_time())
         self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
         self.weight_decay = config['weight_decay']
-
+        self.lr_scheduler=config['lr_scheduler']
         self.start_epoch = 0
         self.cur_step = 0
         self.best_valid_score = -np.inf if self.valid_metric_bigger else np.inf
@@ -831,17 +837,43 @@ class RDDRTrainer(Trainer):
         self.imp_ipsv = IPSV(config, psvmodel, self.model.n_users, self.model.n_items).to(self.device)
         self.imp_ipst = IPST(config, pstmodel, self.model.n_users, self.model.n_items).to(self.device)
         self.imp_model = copy.deepcopy(self.model)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
+        # self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        # self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
+        #                                 weight_decay=self.weight_decay)
+        # self.base_ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
+        #                                       weight_decay=self.weight_decay)
+        # self.base_ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.w_learning_rate,
+        #                                       weight_decay=self.weight_decay)
+        # self.imp_ipsv_optimizer = optim.Adam(self.imp_ipsv.parameters(), lr=self.w_learning_rate,
+        #                                      weight_decay=self.weight_decay)
+        # self.imp_ipst_optimizer = optim.Adam(self.imp_ipst.parameters(), lr=self.w_learning_rate,
+        #                                      weight_decay=self.weight_decay)
+        self.optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        self.imp_optimizer = optim.SGD(self.imp_model.parameters(), lr=self.imp_learning_rate,
                                         weight_decay=self.weight_decay)
-        self.base_ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
+        self.base_ipsv_optimizer = optim.SGD(self.base_ipsv.parameters(), lr=self.w_learning_rate,
                                               weight_decay=self.weight_decay)
-        self.base_ipst_optimizer = optim.Adam(self.base_ipst.parameters(), lr=self.w_learning_rate,
+        self.base_ipst_optimizer = optim.SGD(self.base_ipst.parameters(), lr=self.w_learning_rate,
                                               weight_decay=self.weight_decay)
-        self.imp_ipsv_optimizer = optim.Adam(self.imp_ipsv.parameters(), lr=self.w_learning_rate,
+        self.imp_ipsv_optimizer = optim.SGD(self.imp_ipsv.parameters(), lr=self.w_learning_rate,
                                              weight_decay=self.weight_decay)
-        self.imp_ipst_optimizer = optim.Adam(self.imp_ipst.parameters(), lr=self.w_learning_rate,
-                                             weight_decay=self.weight_decay)
+        self.imp_ipst_optimizer = optim.SGD(self.imp_ipst.parameters(), lr=self.w_learning_rate,
+                                             weight_decay=self.weight_decay)                       
+        self.lr_scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=5,
+        verbose=True, threshold=0.0001, threshold_mode='abs', cooldown=1, min_lr=0, eps=1e-08)
+        self.imp_lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.imp_optimizer, mode='min', factor=0.1,
+                                                                      patience=5,
+                                                                      verbose=True, threshold=0.0001,
+                                                                      threshold_mode='abs', cooldown=1, min_lr=0,
+                                                                      eps=1e-08)            
+        self.bv_lr_scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(self.base_ipsv_optimizer, mode='min', factor=0.1, patience=5,
+        verbose=True, threshold=0.0001, threshold_mode='abs', cooldown=1, min_lr=0, eps=1e-08)
+        self.bt_lr_scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(self.base_ipst_optimizer, mode='min', factor=0.1, patience=5,
+        verbose=True, threshold=0.0001, threshold_mode='abs', cooldown=1, min_lr=0, eps=1e-08)
+        self.iv_lr_scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(self.imp_ipsv_optimizer, mode='min', factor=0.1, patience=5,
+        verbose=True, threshold=0.0001, threshold_mode='abs', cooldown=1, min_lr=0, eps=1e-08)
+        self.it_lr_scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(self.imp_ipst_optimizer, mode='min', factor=0.1, patience=5,
+        verbose=True, threshold=0.0001, threshold_mode='abs', cooldown=1, min_lr=0, eps=1e-08)      
         self.sr = float(config['sample_rate'])
         self.ips_freq = config['ips_freq']
         self.imp_freq = config['imp_freq']
@@ -898,11 +930,10 @@ class RDDRTrainer(Trainer):
                 e_hat_obs = self.none_criterion(y_hat, y_hat + e_hat)
                 delta = e_obs - e_hat_obs
 
-
                 wv = self.imp_ipsv(user, item)
                 wt = self.imp_ipst(user, item, ti)
                 w = wv * wt
-                losses = torch.sum(w * delta)
+                losses = torch.sum(w * delta)/len(delta)
 
                 loss = -losses
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -940,15 +971,11 @@ class RDDRTrainer(Trainer):
                 e_obs = label - y_hat
                 delta2 = self.none_criterion(e_hat, e_obs)
 
-
                 wv = self.imp_ipsv(user, item)
                 wt = self.imp_ipst(user, item, ti)
-                wv[wv<0.25]=0.25
-                wt[wt < 0.25] = 0.25
                 w = wv * wt
-                w=w.detach()
-                losses = torch.sum(w * delta2)
-
+                w = w.detach()
+                losses = torch.sum(w * delta2)/len(delta2)
 
                 loss = -losses
                 # loss = -torch.sum(losses)
@@ -989,12 +1016,9 @@ class RDDRTrainer(Trainer):
 
                 wv = self.imp_ipsv(user, item)
                 wt = self.imp_ipst(user, item, ti)
-                wv[wv < 0.25] = 0.25
-                wt[wt < 0.25] = 0.25
                 w = wv * wt
                 w = w.detach()
-                losses = torch.sum(w * delta2)/len(delta2)
-
+                losses = torch.sum(w * delta2) / len(delta2)
 
                 loss = losses
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -1014,15 +1038,21 @@ class RDDRTrainer(Trainer):
                 # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
                 # time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
                 tot = int(len(user) * self.sr)
-                idx = torch.randint(0, len(user_all), (tot,)).to(self.device)
+                idx = torch.randperm(len(user_all))[:tot].to(self.device)
+                # idx = torch.randint(0, len(user_all), (tot,)).to(self.device)
                 users = user_all[idx].to(self.device)
                 items = item_all[idx].to(self.device)
                 times = time_all[idx].to(self.device)
                 times = times.float()
-                id2 = torch.randint(0, len(user), (tot,)).to(self.device)
-                users = user.scatter(0, id2, users)
-                items = item.scatter(0, id2, items)
-                times = ti.scatter(0, id2, times)
+                id2 = torch.randperm(len(user))[:tot].to(self.device)
+                if tot != 0:
+                    users = user.scatter(0, id2, users)
+                    items = item.scatter(0, id2, items)
+                    times = ti.scatter(0, id2, times)
+                else:
+                    users = user
+                    items = item
+                    times = ti
                 # all_time=torch.arange(0,7).to(self.device)
                 # all_pair = torch.cartesian_prod(user, item)
                 # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
@@ -1037,7 +1067,7 @@ class RDDRTrainer(Trainer):
                 e_all = self.imp_model(users, items, times)
                 # y_hat_all = self.model(user_all, item_all, time_all)
                 # e_all = self.imp_model(user_all, item_all, time_all)
-                loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
+                loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())/len(y_hat_all)  # \sum(e_hat)
 
                 y_hat = self.model(user, item, ti)
                 e_hat = self.imp_model(user, item, ti)
@@ -1045,15 +1075,13 @@ class RDDRTrainer(Trainer):
                 e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
                 delta = self.none_criterion(e_obs, e_hat_obs)
                 # delta = e_obs - e_hat_obs
-                if self.robust:
-                    losses_obs = w * delta
-                    losses = torch.sum(w * delta2)
-                else:
-                    losses_obs = delta
-                    losses = torch.sum(delta2)
+               
+                losses_obs = w * delta
+                losses = torch.sum(w * delta)/ len(losses_obs)
+             
 
-                loss_obs = torch.sum(losses_obs)/len(losses_obs)
-                loss = loss_all+loss_obs
+                loss_obs = torch.sum(losses_obs) / len(losses_obs)
+                loss = loss_all + loss_obs
                 total_loss = losses.item() if total_loss is None else total_loss + losses.item()
                 self._check_nan(loss)
                 loss.backward()
@@ -1117,6 +1145,13 @@ class RDDRTrainer(Trainer):
                     max_step=self.stopping_step,
                     bigger=self.valid_metric_bigger
                 )
+                if self.lr_scheduler:
+                    self.lr_scheduler.step(self.best_valid_score)
+                    self.imp_lr_scheduler.step(self.best_valid_score)
+                    self.bv_lr_scheduler.step(self.best_valid_score)
+                    self.bt_lr_scheduler.step(self.best_valid_score)
+                    self.iv_lr_scheduler.step(self.best_valid_score)
+                    self.it_lr_scheduler.step(self.best_valid_score)
                 valid_end_time = time()
                 valid_score_output = (set_color("epoch %d evaluating", 'green') + " [" + set_color("time", 'blue')
                                       + ": %.2fs, " + set_color("valid_score", 'blue') + ": %f]") % \
@@ -1219,8 +1254,6 @@ class DIPSTrainer(Trainer):
             tuple which includes the sum of loss in each part.
         """
 
-
-
         self.model.train()
         loss_func = loss_func or self.model.calculate_loss
         total_loss = None
@@ -1239,10 +1272,10 @@ class DIPSTrainer(Trainer):
             item = interaction[self.model.ITEM_ID]
             ti = interaction[self.model.TIME]
 
-            w= self.pstmodel.get_p(user,item,ti)
-            w=w.detach()
-            w[w<0.25]=0.25
-            w=torch.reciprocal(w)
+            w = self.pstmodel.get_p(user, item, ti)
+            w = w.detach()
+            w[w < 0.25] = 0.25
+            w = torch.reciprocal(w)
             losses = loss_func(interaction, w)
             if isinstance(losses, tuple):
                 loss = sum(losses)
@@ -1417,8 +1450,6 @@ class IPSTrainer(Trainer):
             tuple which includes the sum of loss in each part.
         """
 
-
-
         self.model.train()
         loss_func = loss_func or self.model.calculate_loss
         total_loss = None
@@ -1438,10 +1469,10 @@ class IPSTrainer(Trainer):
             ti = interaction[self.model.TIME]
 
             wv = self.psvmodel.get_p(user, item).detach()
-            wv[wv < 0.75] = 0.75
-            wv=torch.reciprocal(wv)
+            wv[wv < 0.25] = 0.25
+            wv = torch.reciprocal(wv)
             wt = self.pstmodel.get_p(user, item, ti).detach()
-            wt[wt < 0.75] = 0.75
+            wt[wt < 0.25] = 0.25
             wt = torch.reciprocal(wt)
             w = wv * wt
             # w[w > 1] = 0.05
@@ -1549,7 +1580,6 @@ class IPSTrainer(Trainer):
         return self.best_valid_score, self.best_valid_result
 
 
-
 class DRTrainer(Trainer):
     r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
     functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
@@ -1587,6 +1617,8 @@ class DRTrainer(Trainer):
         saved_model_file = '{}-{}.pth'.format(self.config['model'], get_local_time())
         self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
         self.weight_decay = config['weight_decay']
+        self.lr_scheduler=config['lr_scheduler']
+        
 
         self.start_epoch = 0
         self.cur_step = 0
@@ -1602,7 +1634,15 @@ class DRTrainer(Trainer):
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
         self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
                                         weight_decay=self.weight_decay)
-        self.sr=float(config['sample_rate'])
+        
+        self.lr_scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=5,
+        verbose=True, threshold=0.0001, threshold_mode='abs', cooldown=1, min_lr=0, eps=1e-08)
+        self.imp_lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.imp_optimizer, mode='min', factor=0.1,
+                                                                      patience=5,
+                                                                      verbose=True, threshold=0.0001,
+                                                                      threshold_mode='abs', cooldown=1, min_lr=0,
+                                                                      eps=1e-08)
+        self.sr = float(config['sample_rate'])
         self.imp_freq = config['imp_freq']
         self.eval_type = config['eval_type']
         self.eval_collector = Collector(config)
@@ -1611,6 +1651,7 @@ class DRTrainer(Trainer):
         self.tot_item_num = None
         self.none_criterion = nn.MSELoss(reduction='none')
         self.sum_criterion = nn.MSELoss(reduction='sum')
+
     def _train_epoch(self, train_data, epoch_idx, loss_func=None, show_progress=False):
         r"""Train the model in an epoch
 
@@ -1626,8 +1667,6 @@ class DRTrainer(Trainer):
             multiple parts and the model return these multiple parts loss instead of the sum of loss, it will return a
             tuple which includes the sum of loss in each part.
         """
-
-
 
         self.model.train()
         self.imp_model.train()
@@ -1653,7 +1692,6 @@ class DRTrainer(Trainer):
             e_obs = label - y_hat
             delta2 = self.none_criterion(e_hat, e_obs)
 
-
             wv = self.psvmodel.get_p(user, item)
             wv[wv < 0.25] = 0.25
             wv = torch.reciprocal(wv)
@@ -1662,8 +1700,8 @@ class DRTrainer(Trainer):
             wt = torch.reciprocal(wt)
             w = wv * wt
             w = w.detach()
-           # losses = torch.sum(w * delta2)
-            losses = torch.sum( delta2)/len(delta2)
+            # losses = torch.sum(w * delta2)
+            losses = torch.sum(delta2) / len(delta2)
 
             loss = losses
             total_loss = losses.item() if total_loss is None else total_loss + losses.item()
@@ -1676,45 +1714,323 @@ class DRTrainer(Trainer):
                 iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
 
             self.optimizer.zero_grad()
-            all_time=torch.arange(0,7).to(self.device)
-            all_pair = torch.cartesian_prod(user, item,all_time)
-            user_all, item_all,time_all = all_pair[:, 0], all_pair[:, 1],all_pair[:,2]
-            
+            all_time = torch.arange(0, 7).to(self.device)
+            all_pair = torch.cartesian_prod(user, item, all_time)
+            user_all, item_all, time_all = all_pair[:, 0].to(self.device), all_pair[:, 1].to(self.device), all_pair[:,
+                                                                                                           2].to(
+                self.device)
+
             # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
             # time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
-            tot=int(len(user)*self.sr)
-            idx=torch.randint(0,len(user_all),(tot,)).to(self.device)
-            users=user_all[idx].to(self.device)
-            items=item_all[idx].to(self.device)
-            times=time_all[idx].to(self.device)
-            times=times.float()
-            id2=torch.randint(0,len(user),(tot,)).to(self.device)
-            users=user.scatter(0,id2,users)
-            items=item.scatter(0,id2,items)
-            times=ti.scatter(0,id2,times)
-            # y_hat_all = self.model(user_all, item_all, time_all)
-            # e_all = self.imp_model(user_all, item_all, time_all)
+            tot = int(len(user_all) * self.sr)
+            # idx=torch.randint(0,len(user_all),(tot,)).to(self.device)
+            idx = torch.randperm(len(user_all))[:tot].to(self.device)
+            # users=user_all[idx]
+            # items = item_all[idx]
+            # times = time_all[idx]
+            # users=torch.cat([user,user_all[idx]])
+            # items=torch.cat([item,item_all[idx]])
+            # times=torch.cat([ti,time_all[idx]])
+            users = user_all[idx].to(self.device)
+            items = item_all[idx].to(self.device)
+            times = time_all[idx].to(self.device)
+            times = times.float()
+            id2 = torch.randperm(len(user))[:tot].to(self.device)
+            # id2=torch.randint(0,len(user),(tot,)).to(self.device)
+            if tot != 0:
+                users = user.scatter(0, id2, users)
+                items = item.scatter(0, id2, items)
+                times = ti.scatter(0, id2, times)
+            else:
+                users = user
+                items = item
+                times = ti
             y_hat_all = self.model(users, items, times)
             e_all = self.imp_model(users, items, times)
             loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
             loss_all = loss_all
 
-
             y_hat = self.model(user, item, ti)
             e_hat = self.imp_model(user, item, ti)
             e_obs = self.none_criterion(y_hat, label)
             e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
-            delta = self.none_criterion(e_obs ,e_hat_obs)
-            #delta=e_obs-e_hat_obs
+            delta = self.none_criterion(e_obs, e_hat_obs)
+            # delta=e_obs-e_hat_obs
             losses_obs = w * delta
-          #  losses = torch.sum(w * delta2)
-
+            #  losses = torch.sum(w * delta2)
 
             loss_obs = torch.sum(losses_obs)
 
-            loss=loss_obs+loss_all
-            #loss = (1-epoch_idx/200)*loss_all+loss_obs+self.weight_decay*self.model.l2_norm(user,item)
-            #loss =  loss_obs
+            loss = loss_obs + loss_all
+            # loss = (1-epoch_idx/200)*loss_all+loss_obs+self.weight_decay*self.model.l2_norm(user,item)
+            # loss =  loss_obs
+            total_loss = loss.item() if total_loss is None else total_loss + loss.item()
+            self._check_nan(loss)
+            loss.backward()
+            if self.clip_grad_norm:
+                clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+            self.optimizer.step()
+            if self.gpu_available and show_progress:
+                iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+        return total_loss
+
+    def fit(self, train_data, valid_data=None, verbose=True, saved=True, show_progress=False, callback_fn=None):
+        r"""Train the model based on the train data and the valid data.
+
+        Args:
+            train_data (DataLoader): the train data
+            valid_data (DataLoader, optional): the valid data, default: None.
+                                               If it's None, the early_stopping is invalid.
+            verbose (bool, optional): whether to write training and evaluation information to logger, default: True
+            saved (bool, optional): whether to save the model parameters, default: True
+            show_progress (bool): Show the progress of training epoch and evaluate epoch. Defaults to ``False``.
+            callback_fn (callable): Optional callback function executed at end of epoch.
+                                    Includes (epoch_idx, valid_score) input arguments.
+
+        Returns:
+             (float, dict): best valid score and best valid result. If valid_data is None, it returns (-1, None)
+        """
+        if saved and self.start_epoch >= self.epochs:
+            self._save_checkpoint(-1, verbose=verbose)
+
+        self.eval_collector.data_collect(train_data)
+        if self.config['train_neg_sample_args'].get('dynamic', 'none') != 'none':
+            train_data.get_model(self.model)
+        valid_step = 0
+
+        for epoch_idx in range(self.start_epoch, self.epochs):
+            # train
+            training_start_time = time()
+            train_loss = self._train_epoch(train_data, epoch_idx, show_progress=show_progress)
+            self.train_loss_dict[epoch_idx] = sum(train_loss) if isinstance(train_loss, tuple) else train_loss
+            training_end_time = time()
+            train_loss_output = \
+                self._generate_train_loss_output(epoch_idx, training_start_time, training_end_time, train_loss)
+            if verbose:
+                self.logger.info(train_loss_output)
+            self._add_train_loss_to_tensorboard(epoch_idx, train_loss)
+            self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx},
+                                         head='train')
+
+            # eval
+            if self.eval_step <= 0 or not valid_data:
+                if saved:
+                    self._save_checkpoint(epoch_idx, verbose=verbose)
+                continue
+            if (epoch_idx + 1) % self.eval_step == 0:
+                valid_start_time = time()
+                valid_score, valid_result = self._valid_epoch(valid_data, show_progress=show_progress)
+                self.best_valid_score, self.cur_step, stop_flag, update_flag = early_stopping(
+                    valid_score,
+                    self.best_valid_score,
+                    self.cur_step,
+                    max_step=self.stopping_step,
+                    bigger=self.valid_metric_bigger
+                )
+                if self.lr_scheduler:
+                    self.lr_scheduler.step(self.best_valid_score)
+                    self.imp_lr_scheduler.step(self.best_valid_score)
+                valid_end_time = time()
+                valid_score_output = (set_color("epoch %d evaluating", 'green') + " [" + set_color("time", 'blue')
+                                      + ": %.2fs, " + set_color("valid_score", 'blue') + ": %f]") % \
+                                     (epoch_idx, valid_end_time - valid_start_time, valid_score)
+                valid_result_output = set_color('valid result', 'blue') + ': \n' + dict2str(valid_result)
+                if verbose:
+                    self.logger.info(valid_score_output)
+                    self.logger.info(valid_result_output)
+                self.tensorboard.add_scalar('Vaild_score', valid_score, epoch_idx)
+                self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
+
+                if update_flag:
+                    if saved:
+                        self._save_checkpoint(epoch_idx, verbose=verbose)
+                    self.best_valid_result = valid_result
+
+                if callback_fn:
+                    callback_fn(epoch_idx, valid_score)
+
+                if stop_flag:
+                    stop_output = 'Finished training, best eval result in epoch %d' % \
+                                  (epoch_idx - self.cur_step * self.eval_step)
+                    if verbose:
+                        self.logger.info(stop_output)
+                    break
+
+                valid_step += 1
+
+        self._add_hparam_to_tensorboard(self.best_valid_score)
+
+        return self.best_valid_score, self.best_valid_result
+
+
+class MFDRTrainer(Trainer):
+    r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
+    functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
+    resume_checkpoint() and some other features helpful for model training and evaluation.
+
+    Generally speaking, this class can serve most recommender system models, If the training process of the model is to
+    simply optimize a single loss without involving any complex training strategies, such as adversarial learning,
+    pre-training and so on.
+
+    Initializing the Trainer needs two parameters: `config` and `model`. `config` records the parameters information
+    for controlling training and evaluation, such as `learning_rate`, `epochs`, `eval_step` and so on.
+    `model` is the instantiated object of a Model Class.
+
+    """
+
+    def __init__(self, config, model):
+        super(MFDRTrainer, self).__init__(config, model)
+        self.logger = getLogger()
+        self.tensorboard = get_tensorboard(self.logger)
+        self.wandblogger = WandbLogger(config)
+        self.learner = config['learner']
+        self.base_learning_rate = config['base_learning_rate']
+        self.imp_learning_rate = config['imp_learning_rate']
+        self.epochs = config['epochs']
+        self.eval_step = min(config['eval_step'], self.epochs)
+        self.stopping_step = config['stopping_step']
+        self.clip_grad_norm = config['clip_grad_norm']
+        self.valid_metric = config['valid_metric'].lower()
+        self.valid_metric_bigger = config['valid_metric_bigger']
+        self.test_batch_size = config['eval_batch_size']
+        self.gpu_available = torch.cuda.is_available() and config['use_gpu']
+        self.device = config['device']
+        self.checkpoint_dir = config['checkpoint_dir']
+        ensure_dir(self.checkpoint_dir)
+        saved_model_file = '{}-{}.pth'.format(self.config['model'], get_local_time())
+        self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
+        self.weight_decay = config['weight_decay']
+
+        self.start_epoch = 0
+        self.cur_step = 0
+        self.best_valid_score = -np.inf if self.valid_metric_bigger else np.inf
+        self.best_valid_result = None
+        self.train_loss_dict = dict()
+
+        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
+        self.psvmodel = torch.load(psv_path)
+        self.imp_model = copy.deepcopy(self.model)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.base_learning_rate, weight_decay=self.weight_decay)
+        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
+                                        weight_decay=self.weight_decay)
+        self.sr = float(config['sample_rate'])
+        self.imp_freq = config['imp_freq']
+        self.eval_type = config['eval_type']
+        self.eval_collector = Collector(config)
+        self.evaluator = Evaluator(config)
+        self.item_tensor = None
+        self.tot_item_num = None
+        self.none_criterion = nn.MSELoss(reduction='none')
+        self.sum_criterion = nn.MSELoss(reduction='sum')
+
+    def _train_epoch(self, train_data, epoch_idx, loss_func=None, show_progress=False):
+        r"""Train the model in an epoch
+
+        Args:
+            train_data (DataLoader): The train data.
+            epoch_idx (int): The current epoch id.
+            loss_func (function): The loss function of :attr:`model`. If it is ``None``, the loss function will be
+                :attr:`self.model.calculate_loss`. Defaults to ``None``.
+            show_progress (bool): Show the progress of training epoch. Defaults to ``False``.
+
+        Returns:
+            float/tuple: The sum of loss returned by all batches in this epoch. If the loss in each batch contains
+            multiple parts and the model return these multiple parts loss instead of the sum of loss, it will return a
+            tuple which includes the sum of loss in each part.
+        """
+
+        self.model.train()
+        self.imp_model.train()
+        total_loss = None
+        iter_data = (
+            tqdm(
+                train_data,
+                total=len(train_data),
+                ncols=100,
+                desc=set_color(f"Train {epoch_idx:>5}", 'pink'),
+            ) if show_progress else train_data
+        )
+        for batch_idx, interaction in enumerate(iter_data):
+            interaction = interaction.to(self.device)
+            self.imp_optimizer.zero_grad()
+
+            user = interaction[self.model.USER_ID]
+            item = interaction[self.model.ITEM_ID]
+
+            label = interaction[self.model.LABEL]
+            y_hat = self.model(user, item)
+            e_hat = self.imp_model(user, item)
+            e_obs = label - y_hat
+            delta2 = self.none_criterion(e_hat, e_obs)
+
+            wv = self.psvmodel.get_p(user, item)
+            wv[wv < 0.25] = 0.25
+            wv = torch.reciprocal(wv)
+            w = wv
+            w = w.detach()
+            # losses = torch.sum(w * delta2)
+            losses = torch.sum(delta2) / len(delta2)
+
+            loss = losses + self.weight_decay * self.model.l2_norm(user, item)
+            total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+            self._check_nan(loss)
+            loss.backward()
+            if self.clip_grad_norm:
+                clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+            self.imp_optimizer.step()
+            if self.gpu_available and show_progress:
+                iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+
+            self.optimizer.zero_grad()
+
+            all_pair = torch.cartesian_prod(user, item)
+            user_all, item_all = all_pair[:, 0].to(self.device), all_pair[:, 1].to(self.device)
+
+            # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
+            # time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
+            tot = int(len(user_all) * self.sr)
+            # idx=torch.randint(0,len(user_all),(tot,)).to(self.device)
+            idx = torch.randperm(len(user_all))[:tot].to(self.device)
+            # users=user_all[idx]
+            # items = item_all[idx]
+            # times = time_all[idx]
+            # users=torch.cat([user,user_all[idx]])
+            # items=torch.cat([item,item_all[idx]])
+            # times=torch.cat([ti,time_all[idx]])
+            users = user_all[idx].to(self.device)
+            items = item_all[idx].to(self.device)
+
+            id2 = torch.randperm(len(user))[:tot].to(self.device)
+            # id2=torch.randint(0,len(user),(tot,)).to(self.device)
+            if tot != 0:
+                users = user.scatter(0, id2, users)
+                items = item.scatter(0, id2, items)
+
+            else:
+                users = user
+                items = item
+
+            # y_hat_all = self.model(user_all, item_all, time_all)
+            # e_all = self.imp_model(user_all, item_all, time_all)
+            y_hat_all = self.model(users, items)
+            e_all = self.imp_model(users, items)
+            loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
+            loss_all = loss_all
+
+            y_hat = self.model(user, item)
+            e_hat = self.imp_model(user, item)
+            e_obs = self.none_criterion(y_hat, label)
+            e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
+            delta = self.none_criterion(e_obs, e_hat_obs)
+            # delta=e_obs-e_hat_obs
+            losses_obs = w * delta
+            #  losses = torch.sum(w * delta2)
+
+            loss_obs = torch.sum(losses_obs)
+
+            loss = loss_obs + loss_all + self.weight_decay * self.model.l2_norm(users, items)
+            # loss = (1-epoch_idx/200)*loss_all+loss_obs+self.weight_decay*self.model.l2_norm(user,item)
+            # loss =  loss_obs
             total_loss = loss.item() if total_loss is None else total_loss + loss.item()
             self._check_nan(loss)
             loss.backward()
@@ -1810,3 +2126,377 @@ class DRTrainer(Trainer):
 
         return self.best_valid_score, self.best_valid_result
 
+class MFRDDRTrainer(Trainer):
+    r"""The basic Trainer for basic training and evaluation strategies in recommender systems. This class defines common
+    functions for training and evaluation processes of most recommender system models, including fit(), evaluate(),
+    resume_checkpoint() and some other features helpful for model training and evaluation.
+
+    Generally speaking, this class can serve most recommender system models, If the training process of the model is to
+    simply optimize a single loss without involving any complex training strategies, such as adversarial learning,
+    pre-training and so on.
+
+    Initializing the Trainer needs two parameters: `config` and `model`. `config` records the parameters information
+    for controlling training and evaluation, such as `learning_rate`, `epochs`, `eval_step` and so on.
+    `model` is the instantiated object of a Model Class.
+
+    """
+
+    def __init__(self, config, model):
+        super(MFRDDRTrainer, self).__init__(config, model)
+        self.logger = getLogger()
+        self.tensorboard = get_tensorboard(self.logger)
+        self.wandblogger = WandbLogger(config)
+        self.learner = config['learner']
+        self.learning_rate = config['learning_rate']
+        self.imp_learning_rate = config['imp_learning_rate']
+        self.w_learning_rate = config['w_learning_rate']
+        self.epochs = config['epochs']
+        self.eval_step = min(config['eval_step'], self.epochs)
+        self.stopping_step = config['stopping_step']
+        self.clip_grad_norm = config['clip_grad_norm']
+        self.valid_metric = config['valid_metric'].lower()
+        self.valid_metric_bigger = config['valid_metric_bigger']
+        self.test_batch_size = config['eval_batch_size']
+        self.gpu_available = torch.cuda.is_available() and config['use_gpu']
+        self.device = config['device']
+        self.checkpoint_dir = config['checkpoint_dir']
+        ensure_dir(self.checkpoint_dir)
+        saved_model_file = '{}-{}.pth'.format(self.config['model'], get_local_time())
+        self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
+        self.weight_decay = config['weight_decay']
+
+        self.start_epoch = 0
+        self.cur_step = 0
+        self.best_valid_score = -np.inf if self.valid_metric_bigger else np.inf
+        self.best_valid_result = None
+        self.train_loss_dict = dict()
+
+        psv_path = config['psv_path'] if config['psv_path'] != None else 'init_ps/item_ps_week.pth'
+
+        psvmodel = torch.load(psv_path)
+
+        self.base_ipsv = IPSV(config, psvmodel, self.model.n_users, self.model.n_items).to(self.device)
+
+        self.imp_ipsv = IPSV(config, psvmodel, self.model.n_users, self.model.n_items).to(self.device)
+
+        self.imp_model = copy.deepcopy(self.model)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        self.imp_optimizer = optim.Adam(self.imp_model.parameters(), lr=self.imp_learning_rate,
+                                        weight_decay=self.weight_decay)
+        self.base_ipsv_optimizer = optim.Adam(self.base_ipsv.parameters(), lr=self.w_learning_rate,
+                                              weight_decay=self.weight_decay)
+
+        self.imp_ipsv_optimizer = optim.Adam(self.imp_ipsv.parameters(), lr=self.w_learning_rate,
+                                             weight_decay=self.weight_decay)
+
+        self.sr = float(config['sample_rate'])
+        self.ips_freq = config['ips_freq']
+        self.imp_freq = config['imp_freq']
+        self.base_freq = config['base_freq']
+        self.eval_type = config['eval_type']
+        self.robust = config['robust']
+        self.eval_collector = Collector(config)
+        self.evaluator = Evaluator(config)
+        self.item_tensor = None
+        self.tot_item_num = None
+        self.none_criterion = nn.MSELoss(reduction='none')
+        self.sum_criterion = nn.MSELoss(reduction='sum')
+
+    def _train_epoch(self, train_data, epoch_idx, loss_func=None, show_progress=False):
+        r"""Train the model in an epoch
+
+        Args:
+            train_data (DataLoader): The train data.
+            epoch_idx (int): The current epoch id.
+            loss_func (function): The loss function of :attr:`model`. If it is ``None``, the loss function will be
+                :attr:`self.model.calculate_loss`. Defaults to ``None``.
+            show_progress (bool): Show the progress of training epoch. Defaults to ``False``.
+
+        Returns:
+            float/tuple: The sum of loss returned by all batches in this epoch. If the loss in each batch contains
+            multiple parts and the model return these multiple parts loss instead of the sum of loss, it will return a
+            tuple which includes the sum of loss in each part.
+        """
+
+        if epoch_idx % self.ips_freq == 0:
+            self.base_ipsv.train()
+
+            total_loss = None
+            iter_data = (
+                tqdm(
+                    train_data,
+                    total=len(train_data),
+                    ncols=100,
+                    desc=set_color(f"IPS Train {epoch_idx:>5}", 'pink'),
+                ) if show_progress else train_data
+            )
+            for batch_idx, interaction in enumerate(iter_data):
+                interaction = interaction.to(self.device)
+                user = interaction[self.model.USER_ID]
+                item = interaction[self.model.ITEM_ID]
+
+                label = interaction[self.model.LABEL]
+                self.base_ipsv_optimizer.zero_grad()
+
+
+                y_hat = self.model(user, item)
+                e_hat = self.imp_model(user, item)
+                e_obs = self.none_criterion(label, y_hat)
+                e_hat_obs = self.none_criterion(y_hat, y_hat + e_hat)
+                delta = e_obs - e_hat_obs
+
+                wv = self.imp_ipsv(user, item)
+
+                w = wv
+                losses = torch.sum(w * delta)
+
+                loss = -losses
+                total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+                self._check_nan(loss)
+                loss.backward()
+                if self.clip_grad_norm:
+                    clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+                self.base_ipsv_optimizer.step()
+
+                if self.gpu_available and show_progress:
+                    iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+        if epoch_idx % self.imp_freq == 0:
+            self.imp_ipsv.train()
+
+            total_loss = None
+            iter_data = (
+                tqdm(
+                    train_data,
+                    total=len(train_data),
+                    ncols=100,
+                    desc=set_color(f"Imp IPS Train {epoch_idx:>5}", 'pink'),
+                ) if show_progress else train_data
+            )
+            for batch_idx, interaction in enumerate(iter_data):
+                interaction = interaction.to(self.device)
+                user = interaction[self.model.USER_ID]
+                item = interaction[self.model.ITEM_ID]
+
+                label = interaction[self.model.LABEL]
+                self.imp_ipsv_optimizer.zero_grad()
+
+
+                y_hat = self.model(user, item)
+                e_hat = self.imp_model(user, item)
+                e_obs = label - y_hat
+                delta2 = self.none_criterion(e_hat, e_obs)
+
+                wv = self.imp_ipsv(user, item)
+
+                wv[wv < 0.25] = 0.25
+
+                w = wv
+                w = w.detach()
+                losses = torch.sum(w * delta2)
+
+                loss = -losses
+                # loss = -torch.sum(losses)
+                total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+                self._check_nan(loss)
+                loss.backward()
+                if self.clip_grad_norm:
+                    clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+                self.imp_ipsv_optimizer.step()
+
+                if self.gpu_available and show_progress:
+                    iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+
+        if epoch_idx % self.base_freq == 0:
+            self.model.train()
+            self.imp_model.train()
+            total_loss = None
+            iter_data = (
+                tqdm(
+                    train_data,
+                    total=len(train_data),
+                    ncols=100,
+                    desc=set_color(f"Train {epoch_idx:>5}", 'pink'),
+                ) if show_progress else train_data
+            )
+            for batch_idx, interaction in enumerate(iter_data):
+                interaction = interaction.to(self.device)
+                self.imp_optimizer.zero_grad()
+
+                user = interaction[self.model.USER_ID]
+                item = interaction[self.model.ITEM_ID]
+
+                label = interaction[self.model.LABEL]
+                y_hat = self.model(user, item)
+                e_hat = self.imp_model(user, item)
+                e_obs = label - y_hat
+                delta2 = self.none_criterion(e_hat, e_obs)
+
+                wv = self.imp_ipsv(user, item)
+
+                wv[wv < 0.25] = 0.25
+
+                w = wv
+                w = w.detach()
+                losses = torch.sum(w * delta2) / len(delta2)
+
+                loss = losses+ self.weight_decay * self.model.l2_norm(user, item)
+                total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+                self._check_nan(loss)
+                loss.backward()
+                if self.clip_grad_norm:
+                    clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+                self.imp_optimizer.step()
+                if self.gpu_available and show_progress:
+                    iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+
+                self.optimizer.zero_grad()
+
+                all_pair = torch.cartesian_prod(user, item)
+                user_all, item_all= all_pair[:, 0], all_pair[:, 1]
+
+                # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
+                # time_all = torch.randint(0, 7, [len(user_all), ]).to(self.device)
+                tot = int(len(user) * self.sr)
+                idx = torch.randperm(len(user_all))[:tot].to(self.device)
+                # idx = torch.randint(0, len(user_all), (tot,)).to(self.device)
+                users = user_all[idx].to(self.device)
+                items = item_all[idx].to(self.device)
+
+                id2 = torch.randperm(len(user))[:tot].to(self.device)
+                # id2 = torch.randint(0, len(user), (tot,)).to(self.device)
+                # users = user.scatter(0, id2, users)
+                # items = item.scatter(0, id2, items)
+                # times = ti.scatter(0, id2, times)
+                if tot != 0:
+                    users = user.scatter(0, id2, users)
+                    items = item.scatter(0, id2, items)
+
+                else:
+                    users = user
+                    items = item
+
+                # all_time=torch.arange(0,7).to(self.device)
+                # all_pair = torch.cartesian_prod(user, item)
+                # user_all, item_all = all_pair[:, 0], all_pair[:, 1]
+                # time_all=torch.randint(0,7,[len(user_all),]).to(self.device)
+                # idx = torch.randint_like(user, 0, len(user_all))
+                # idx = idx[:max(1, int(len(user) / 500))]
+                # users = user_all[idx]
+                # items = item_all[idx]
+                # times = time_all[idx]
+
+                y_hat_all = self.model(users, items)
+                e_all = self.imp_model(users, items)
+                # y_hat_all = self.model(user_all, item_all, time_all)
+                # e_all = self.imp_model(user_all, item_all, time_all)
+                loss_all = self.sum_criterion(y_hat_all, e_all + y_hat_all.detach())  # \sum(e_hat)
+
+                y_hat = self.model(user, item)
+                e_hat = self.imp_model(user, item)
+                e_obs = self.none_criterion(y_hat, label)
+                e_hat_obs = self.none_criterion(y_hat, y_hat.detach() + e_hat)
+                delta = self.none_criterion(e_obs, e_hat_obs)
+                # delta = e_obs - e_hat_obs
+                if self.robust:
+                    losses_obs = w * delta
+                    losses = torch.sum(w * delta2)
+                else:
+                    losses_obs = delta
+                    losses = torch.sum(delta2)
+
+                loss_obs = torch.sum(losses_obs) / len(losses_obs)
+                loss = loss_all + loss_obs+ self.weight_decay * self.model.l2_norm(users, items)
+                total_loss = losses.item() if total_loss is None else total_loss + losses.item()
+                self._check_nan(loss)
+                loss.backward()
+                if self.clip_grad_norm:
+                    clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
+                self.optimizer.step()
+                if self.gpu_available and show_progress:
+                    iter_data.set_postfix_str(set_color('GPU RAM: ' + get_gpu_usage(self.device), 'yellow'))
+        return total_loss
+
+    def fit(self, train_data, valid_data=None, verbose=True, saved=True, show_progress=False, callback_fn=None):
+        r"""Train the model based on the train data and the valid data.
+
+        Args:
+            train_data (DataLoader): the train data
+            valid_data (DataLoader, optional): the valid data, default: None.
+                                               If it's None, the early_stopping is invalid.
+            verbose (bool, optional): whether to write training and evaluation information to logger, default: True
+            saved (bool, optional): whether to save the model parameters, default: True
+            show_progress (bool): Show the progress of training epoch and evaluate epoch. Defaults to ``False``.
+            callback_fn (callable): Optional callback function executed at end of epoch.
+                                    Includes (epoch_idx, valid_score) input arguments.
+
+        Returns:
+             (float, dict): best valid score and best valid result. If valid_data is None, it returns (-1, None)
+        """
+        if saved and self.start_epoch >= self.epochs:
+            self._save_checkpoint(-1, verbose=verbose)
+
+        self.eval_collector.data_collect(train_data)
+        if self.config['train_neg_sample_args'].get('dynamic', 'none') != 'none':
+            train_data.get_model(self.model)
+        valid_step = 0
+
+        for epoch_idx in range(self.start_epoch, self.epochs):
+            # train
+            training_start_time = time()
+            train_loss = self._train_epoch(train_data, epoch_idx, show_progress=show_progress)
+            self.train_loss_dict[epoch_idx] = sum(train_loss) if isinstance(train_loss, tuple) else train_loss
+            training_end_time = time()
+            train_loss_output = \
+                self._generate_train_loss_output(epoch_idx, training_start_time, training_end_time, train_loss)
+            if verbose:
+                self.logger.info(train_loss_output)
+            self._add_train_loss_to_tensorboard(epoch_idx, train_loss)
+            self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx},
+                                         head='train')
+
+            # eval
+            if self.eval_step <= 0 or not valid_data:
+                if saved:
+                    self._save_checkpoint(epoch_idx, verbose=verbose)
+                continue
+            if (epoch_idx + 1) % self.eval_step == 0:
+                valid_start_time = time()
+                valid_score, valid_result = self._valid_epoch(valid_data, show_progress=show_progress)
+                self.best_valid_score, self.cur_step, stop_flag, update_flag = early_stopping(
+                    valid_score,
+                    self.best_valid_score,
+                    self.cur_step,
+                    max_step=self.stopping_step,
+                    bigger=self.valid_metric_bigger
+                )
+                valid_end_time = time()
+                valid_score_output = (set_color("epoch %d evaluating", 'green') + " [" + set_color("time", 'blue')
+                                      + ": %.2fs, " + set_color("valid_score", 'blue') + ": %f]") % \
+                                     (epoch_idx, valid_end_time - valid_start_time, valid_score)
+                valid_result_output = set_color('valid result', 'blue') + ': \n' + dict2str(valid_result)
+                if verbose:
+                    self.logger.info(valid_score_output)
+                    self.logger.info(valid_result_output)
+                self.tensorboard.add_scalar('Vaild_score', valid_score, epoch_idx)
+                self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
+
+                if update_flag:
+                    if saved:
+                        self._save_checkpoint(epoch_idx, verbose=verbose)
+                    self.best_valid_result = valid_result
+
+                if callback_fn:
+                    callback_fn(epoch_idx, valid_score)
+
+                if stop_flag:
+                    stop_output = 'Finished training, best eval result in epoch %d' % \
+                                  (epoch_idx - self.cur_step * self.eval_step)
+                    if verbose:
+                        self.logger.info(stop_output)
+                    break
+
+                valid_step += 1
+
+        self._add_hparam_to_tensorboard(self.best_valid_score)
+
+        return self.best_valid_score, self.best_valid_result

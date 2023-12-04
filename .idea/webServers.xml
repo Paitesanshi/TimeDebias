@@ -16,6 +16,13 @@
           </advancedOptions>
         </fileTransfer>
       </webServer>
+      <webServer id="f8784f15-9a2c-4fb2-bd41-5d522cdb0e5e" name="156qiqi">
+        <fileTransfer rootFolder="/home/qiqi/wanglei" accessType="SFTP" host="183.174.229.156" port="5102" sshConfigId="88c5d290-4a87-4428-ac8f-cc6a6f6767c1" sshConfig="156" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>

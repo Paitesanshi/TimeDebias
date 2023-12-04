@@ -53,8 +53,8 @@ class TMF(GeneralRecommender):
             self.sigmoid = None
 
         # parameters initialization
-        #self.init_weights()
-        self.apply(xavier_normal_initialization)
+        self.init_weights()
+        #self.apply(xavier_normal_initialization)
 
     def init_weights(self):
         initrange = 0.1

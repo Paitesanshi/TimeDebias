@@ -1,37 +1,37 @@
 
 # general
-gpu_id: 0
+gpu_id: 1
 use_gpu: True
-seed: 2020
+seed: 2023
 state: INFO
 reproducibility: True
 data_path: 'dataset/'
-checkpoint_dir: 'saved'
+checkpoint_dir: '/data00/wanglei/saved'
 show_progress: False
 save_dataset: False
 dataset_save_path: ~
 save_dataloaders: False
 dataloaders_save_path: ~
-log_wandb: False
+log_wandb: True
 wandb_project: 'recbole'
 LABEL_FIELD : 'rating'
 RATING_FIELD : 'rating'
 TIME_FIELD: 'wday'
 #WDAY_FIELD: 'wday'
 # training settings
-epochs: 300
+epochs: 100
 train_batch_size: 1024
 learner: adam
-base_learning_rate: 0.001
-imp_learning_rate: 0.01
-w_learning_rate: 0.001
+base_learning_rate: 0.0001
+imp_learning_rate: 0.0000001
+w_learning_rate: 0.0000001
 neg_sampling: ~
 #  uniform: 10
 
 eval_step: 1
-stopping_step: 20
-clip_grad_norm: ~
-# clip_grad_norm:  {'max_norm': 5, 'norm_type': 2}
+stopping_step: 10
+# clip_grad_norm: ~
+clip_grad_norm:  {'max_norm': 10, 'norm_type': 2}
 weight_decay: 0.0
 loss_decimal_place: 4
 require_pow: False
@@ -56,10 +56,10 @@ K: 7
 T: 100
 M: 3
 sig: 0.5
-embedding_size: 64
+embedding_size: 32
 benchmark_filename: ['train','valid','test']
 
-sample_rate: 0.1
+sample_rate: 0
 ips_freq: 5
 imp_freq: 5
 base_freq: 1

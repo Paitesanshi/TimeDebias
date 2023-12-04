@@ -86,6 +86,11 @@ def get_trainer(model_type, model_name,task=None,robust=None):
         Trainer: trainer class
     """
     if task!=None:
+        if task.lower() == 'dr_mf':
+            if robust == True:
+                return getattr(importlib.import_module('recbole.trainer'), 'MFRDDRTrainer')
+            return getattr(importlib.import_module('recbole.trainer'), 'MFDRTrainer')
+
         if task.lower()=='ips':
             if robust==True:
                 return getattr(importlib.import_module('recbole.trainer'), 'RDIPSTrainer')

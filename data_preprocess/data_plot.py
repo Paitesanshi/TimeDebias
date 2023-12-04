@@ -143,8 +143,8 @@ def data_plot(full_path,test_path):
 if __name__ == '__main__':
     get_statistic('ml_1m_global.train.inter')
     get_statistic('ml_1m_global.test.inter')
-    # get_statistic('food_global/food_global.train.inter')
-    # get_statistic('food_global/food_global.test.inter')
+    # get_statistic('food_global_old/food_global_old.train.inter')
+    # get_statistic('food_global_old/food_global_old.test.inter')
     # get_statistic('Amazon_Digital_Music_global/Amazon_Digital_Music_global.train.inter')
     # get_statistic('Amazon_Digital_Music_global/Amazon_Digital_Music_global.test.inter')
     #data_plot('ml_1m_global_full.csv_statistic.csv','ml_1m_global.test.inter_old_statistic.csv')

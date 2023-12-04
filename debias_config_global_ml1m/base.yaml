@@ -54,5 +54,5 @@ K: 7
 T: 100
 M: 3
 sig: 0.5
-embedding_size: 8
+embedding_size: 32
 benchmark_filename: ['train','valid','test']

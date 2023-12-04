@@ -1,18 +1,18 @@
 
 # general
-gpu_id: 2
+gpu_id: 0
 use_gpu: True
 seed: 2020
 state: INFO
 reproducibility: True
 data_path: 'dataset/'
-checkpoint_dir: 'saved'
+checkpoint_dir: '/data00/wanglei/saved'
 show_progress: False
 save_dataset: False
 dataset_save_path: ~
 save_dataloaders: False
 dataloaders_save_path: ~
-log_wandb: False
+log_wandb: True
 wandb_project: 'recbole'
 LABEL_FIELD : 'rating'
 RATING_FIELD : 'rating'
@@ -56,10 +56,10 @@ K: 7
 T: 100
 M: 3
 sig: 0.5
-embedding_size: 32
+embedding_size: 64
 benchmark_filename: ['train','valid','test']
 
-sample_rate: 0.1
+
 ips_freq: 5
 imp_freq: 5
 base_freq: 1
